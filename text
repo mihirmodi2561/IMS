@@ -1,0 +1,27 @@
+I think insted of doing all this thing merge or replace, 
+what we can do is, create the code in index.html and stocks.gs file.
+
+Okay buddy here I’m again.
+
+buddy i want to restructure whole Stock Items sheet database.
+from 6 columns to 10 columns.
+and also, want to change the design. 
+here we are, on the top as you wrote Stock Mangement that’s perefect, but below 4 cards i want to remove and insted of that, I want to put 2 buttons 
+
+first button is already there “Add New Stock Item” but beside that i want to add Add Item Category similar to as you can see in the image. I think you have to create new sheet catogory and based on what user created you can fetch give the output in below.
+
+below that search button that also you can see.
+search button based on, In drop down menu this 3 thing put so user can select one (Item name or item category or item id). beside drop down menu put search button so user can write and search Based on this three it going to filter out and give the output. beside that clear text and search button once user click on search button it search whatever user wrote in table. not anything outside from table, if outside from table then not found message will show.
+
+Now the below the enteries are perfect you are showing me, but i want to add columns as i told you. Columns should be 
+
+Item ID  | Item Category  | Item Name  | Description | Purchase Price  | Sale Price  | Stock QTY  | Reorder Level  | Reorder Required  | Actions
+
+THis total 10 columns i want.
+
+Now as i told you to create Add New Stock Item, once user click on this button, It should be open similar to open like on the above we are opening. but difference is here that you have to ask 10 column values, like Item ID (that user can not edit(no one can edit)). 
+based on category sheet what are the value stored it show like image showing, Item Name,  Purchase Price,  Sale Price,  Stock QTY, Reorder Level , Reorder Required( if below th reorder level stock is then yes or else no) and last Action that we have already
+I told what should contain
+Item ID : unique ID Start with “IT001” incrmental way +1
+As on the top you add category 
+if you have any questiion please let me know before creating anything. and before creating code, tell me what you understood.
