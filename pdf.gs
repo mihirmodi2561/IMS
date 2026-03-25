@@ -75,27 +75,9 @@ function createPDFHTML(data, type) {
   html += '.customer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }';
   html += '.customer-field label { font-weight: bold; font-size: 11px; color: #666; display: block; margin-bottom: 3px; }';
   html += '.customer-field div { font-size: 12px; padding: 5px; border-bottom: 1px solid #ddd; }';
-  html += '.objective-box { background: #f8f9fa; padding: 20px; margin: 20px 0; border-left: 4px solid #001f3f; }';
-  html += '.objective-box h3 { margin: 0 0 15px 0; font-size: 14px; color: #001f3f; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }';
-  
-  // Objective content formatting styles
-  html += '.objective-content { font-size: 11px; line-height: 1.7; color: #333; }';
-  html += '.objective-content h1 { font-size: 16px; font-weight: bold; color: #001f3f; margin: 18px 0 10px 0; border-bottom: 2px solid #001f3f; padding-bottom: 6px; }';
-  html += '.objective-content h2 { font-size: 14px; font-weight: bold; color: #001f3f; margin: 15px 0 8px 0; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; }';
-  html += '.objective-content h3 { font-size: 12px; font-weight: bold; color: #001f3f; margin: 12px 0 6px 0; }';
-  html += '.objective-content p { margin: 8px 0; line-height: 1.7; }';
-  html += '.objective-content ul { margin: 10px 0; padding-left: 20px; list-style-type: disc; }';
-  html += '.objective-content ol { margin: 10px 0; padding-left: 20px; list-style-type: decimal; }';
-  html += '.objective-content li { margin: 5px 0; line-height: 1.6; }';
-  html += '.objective-content strong { font-weight: 600; color: #001f3f; }';
-  html += '.objective-content em { font-style: italic; }';
-  html += '.objective-content u { text-decoration: underline; }';
-  html += '.objective-content .ql-align-center { text-align: center; }';
-  html += '.objective-content .ql-align-right { text-align: right; }';
-  html += '.objective-content .ql-align-justify { text-align: justify; }';
-  html += '.objective-content .ql-size-small { font-size: 9px; }';
-  html += '.objective-content .ql-size-large { font-size: 14px; }';
-  
+  html += '.objective-box { background: #f8f9fa; padding: 15px; margin: 20px 0; border-left: 4px solid #001f3f; }';
+  html += '.objective-box h3 { margin: 0 0 10px 0; font-size: 14px; color: #001f3f; }';
+  html += '.objective-box p { margin: 0; font-size: 12px; line-height: 1.6; }';
   html += 'table.items { width: 100%; border-collapse: collapse; margin: 10px 0; }';
   html += 'table.items th { background: #001f3f; color: white; padding: 10px; text-align: left; font-size: 11px; }';
   html += 'table.items td { padding: 8px; border-bottom: 1px solid #ddd; font-size: 11px; }';
@@ -110,7 +92,6 @@ function createPDFHTML(data, type) {
   html += '.total-row span:first-child { text-align: left; min-width: 200px; }';
   html += '.total-row span:last-child { text-align: right; font-weight: 500; }';
   html += '.total-row.section-divider { border-top: 1px solid #ddd; margin-top: 5px; padding-top: 10px; }';
-  html += '.total-row.customersection-divider { border-top: 1px solid #ddd; margin-top: 50px; padding-top: 10px; }';
   html += '.total-row.grand-total { font-size: 16px; font-weight: bold; color: #001f3f; border-top: 2px solid #001f3f; margin-top: 5px; padding: 10px 0; }';
   html += '.payment-schedule { background: #f8f9fa; padding: 15px; margin-top: 15px; border-radius: 5px; }';
   html += '.payment-schedule h4 { margin: 0 0 10px 0; font-size: 13px; font-weight: bold; }';
@@ -154,7 +135,7 @@ function createPDFHTML(data, type) {
   if (data.objective && data.objective.trim() !== '') {
     html += '<div class="objective-box">';
     html += '<h3>PROJECT OBJECTIVE</h3>';
-    html += '<div class="objective-content">' + data.objective + '</div>';
+    html += '<p>' + data.objective + '</p>';
     html += '</div>';
   }
 
@@ -196,9 +177,6 @@ function createPDFHTML(data, type) {
   html += '<li>Adams Telecom Systems makes the recommendations as described in this proposal.</li>';
   html += '<li>Adams Telecom Systems is not liable for any use or information that is not described and/or disclosed in this proposal.</li>';
   html += '</ul>';
-  html += '<p></p>' 
-  html += '<h4 style="color: #001f3f; margin-bottom: 10px;">Customer Acceptance <span style="font-size:10px;">(Sign below):</span></h4>';
-  html += '<div class="total-row customersection-divider"></div>';
   html += '</div>';
   
   // RIGHT COLUMN: Calculations
@@ -206,7 +184,6 @@ function createPDFHTML(data, type) {
   html += '<div class="total-row"><span>Material Cost</span><span>$' + parseFloat(data.materialCost || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row"><span>Installation & Training</span><span>$' + parseFloat(data.installationCost || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row section-divider"><span><strong>Sub Total</strong></span><span><strong>$' + parseFloat(data.subTotal || 0).toFixed(2) + '</strong></span></div>';
-  // html += '<div class="total-row"><span>Sales Tax</span><span>' + (data.salesTax != null ? '$' + parseFloat(data.salesTax).toFixed(2) : 'Exempt') + '</span></div>';
   html += '<div class="total-row"><span>Sales Tax</span><span>$' + parseFloat(data.salesTax || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row grand-total"><span>GRAND TOTAL</span><span>$' + parseFloat(data.grandTotal || 0).toFixed(2) + '</span></div>';
   

@@ -5,12 +5,7 @@
  */
 
 function getNextQuoteNumber() {
-  // Use lock to prevent race conditions when multiple users create quotes
-  var lock = LockService.getScriptLock();
   try {
-    // Wait up to 30 seconds for the lock
-    lock.waitLock(30000);
-    
     var ss = getSpreadsheet();
     var quotesSheet = ss.getSheetByName('Quotes');
 
@@ -23,30 +18,19 @@ function getNextQuoteNumber() {
       return '100001';
     }
 
-    // Get ALL quote numbers and find the maximum
-    var quoteNumbers = quotesSheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    var maxNumber = 100000; // Start from minimum
-    
-    for (var i = 0; i < quoteNumbers.length; i++) {
-      var num = parseInt(quoteNumbers[i][0]);
-      if (!isNaN(num) && num > maxNumber) {
-        maxNumber = num;
-      }
+    var lastQuoteNumber = quotesSheet.getRange(lastRow, 1).getValue();
+    if (!lastQuoteNumber) {
+      return '100001';
     }
-    
-    var nextNumber = maxNumber + 1;
+
+    var nextNumber = parseInt(lastQuoteNumber) + 1;
     return nextNumber.toString();
-    
   } catch (error) {
-    Logger.log('Error getting next quote number: ' + error);
     return '100001';
-  } finally {
-    // Always release the lock
-    lock.releaseLock();
   }
 }
 
-// Save quote - UPDATED WITH TAX SYSTEM
+// Save quote
 function saveQuote(quoteData) {
   try {
     var ss = getSpreadsheet();
@@ -62,25 +46,13 @@ function saveQuote(quoteData) {
     // Convert items array to JSON
     var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems);
 
-    // Get tax values
-    var taxType = quoteData.taxType || 'Percentage';
-    var taxRate = parseFloat(quoteData.taxRate) || 0;
-    
     // Calculate totals
     var materialCost = parseFloat(quoteData.materialCost) || 0;
     var installationCost = parseFloat(quoteData.installationCost) || 0;
+    var salesTax = parseFloat(quoteData.salesTax) || 0;
     var downPayment = parseFloat(quoteData.downPayment) || 0;
     
     var subTotal = materialCost + installationCost;
-    
-    // Calculate sales tax based on type
-    var salesTax = 0;
-    if (taxType === 'Exempt') {
-      salesTax = 0;
-    } else {
-      salesTax = subTotal * (taxRate / 100);
-    }
-    
     var grandTotal = subTotal + salesTax;
     var finalPayment = grandTotal - downPayment;
 
@@ -100,16 +72,14 @@ function saveQuote(quoteData) {
       materialCost,                          // M: Material Cost
       installationCost,                      // N: Installation Cost
       subTotal,                              // O: Sub Total
-      salesTax,                              // P: Sales Tax (calculated amount)
+      salesTax,                              // P: Sales Tax
       grandTotal,                            // Q: Grand Total
       downPayment,                           // R: Down Payment
       finalPayment,                          // S: Final Payment
       quoteData.preparedBy,                  // T: Prepared By
       quoteData.terms || 'Payment due within 30 days', // U: Terms
       createdAt,                             // V: Created At
-      quoteData.status || 'Pending',         // W: Status
-      taxType,                               // X: Tax Type (NEW)
-      taxRate                                // Y: Tax Rate (NEW)
+      quoteData.status || 'Pending'          // W: Status
     ];
 
     quotesSheet.appendRow(rowData);
@@ -124,12 +94,9 @@ function saveQuote(quoteData) {
   }
 }
 
-// Update existing quote - UPDATED WITH TAX SYSTEM
+// Update existing quote
 function updateQuote(quoteData) {
   try {
-    Logger.log('=== UPDATE QUOTE START ===');
-    Logger.log('Quote Number: ' + quoteData.quoteNumber);
-    
     var ss = getSpreadsheet();
     var quotesSheet = ss.getSheetByName('Quotes');
 
@@ -152,73 +119,47 @@ function updateQuote(quoteData) {
       return {success: false, message: 'Quote not found'};
     }
 
-    Logger.log('Found quote at row: ' + rowIndex);
-    
-    // Get original data to preserve customer info
-    var originalRow = data[rowIndex - 1];
-    
     // Convert items array to JSON
-    var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems || []);
-    Logger.log('Items JSON: ' + itemsJSON);
+    var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems);
 
-    // Get tax values
-    var taxType = quoteData.taxType || 'Percentage';
-    var taxRate = parseFloat(quoteData.taxRate) || 0;
-    
     // Calculate totals
     var materialCost = parseFloat(quoteData.materialCost) || 0;
     var installationCost = parseFloat(quoteData.installationCost) || 0;
+    var salesTax = parseFloat(quoteData.salesTax) || 0;
     var downPayment = parseFloat(quoteData.downPayment) || 0;
     
     var subTotal = materialCost + installationCost;
-    
-    // Calculate sales tax based on type
-    var salesTax = 0;
-    if (taxType === 'Exempt') {
-      salesTax = 0;
-    } else {
-      salesTax = subTotal * (taxRate / 100);
-    }
-    
     var grandTotal = subTotal + salesTax;
     var finalPayment = grandTotal - downPayment;
-    
-    Logger.log('Calculated: SubTotal=' + subTotal + ', TaxType=' + taxType + ', TaxRate=' + taxRate + ', SalesTax=' + salesTax + ', GrandTotal=' + grandTotal);
 
-    // Update the row - PRESERVE CUSTOMER DATA from original
+    // Update the row (keep quote number, created at, and status)
     var rowData = [
       quoteData.quoteNumber,                 // A: Quote Number
-      quoteData.date || originalRow[1],      // B: Date
-      quoteData.validUntil || originalRow[2], // C: Valid Until
-      // CUSTOMER DATA - Use original values (READ-ONLY)
-      originalRow[3],                        // D: Customer ID (from original)
-      originalRow[4],                        // E: Customer Name (from original)
-      originalRow[5],                        // F: Company (from original)
-      originalRow[6],                        // G: Address (from original)
-      originalRow[7],                        // H: City (from original)
-      originalRow[8],                        // I: Phone (from original)
-      originalRow[9],                        // J: Email (from original)
-      // EDITABLE FIELDS
+      quoteData.date,                        // B: Date
+      quoteData.validUntil,                  // C: Valid Until
+      quoteData.customerId || '',            // D: Customer ID
+      quoteData.customerName,                // E: Customer Name
+      quoteData.customerCompany || '',       // F: Company
+      quoteData.customerAddress || '',       // G: Address
+      quoteData.customerCity || '',          // H: City
+      quoteData.customerPhone || '',         // I: Phone
+      quoteData.customerEmail || '',         // J: Email
       quoteData.objective || '',             // K: Objective
       itemsJSON,                             // L: Items JSON
       materialCost,                          // M: Material Cost
       installationCost,                      // N: Installation Cost
       subTotal,                              // O: Sub Total
-      salesTax,                              // P: Sales Tax (calculated)
+      salesTax,                              // P: Sales Tax
       grandTotal,                            // Q: Grand Total
       downPayment,                           // R: Down Payment
       finalPayment,                          // S: Final Payment
-      quoteData.preparedBy || originalRow[19], // T: Prepared By
+      quoteData.preparedBy,                  // T: Prepared By
       quoteData.terms || 'Payment due within 30 days', // U: Terms
-      originalRow[21],                       // V: Keep original Created At
-      originalRow[22],                       // W: Keep original Status
-      taxType,                               // X: Tax Type (NEW)
-      taxRate                                // Y: Tax Rate (NEW)
+      data[rowIndex - 1][21],                // V: Keep original Created At
+      data[rowIndex - 1][22]                 // W: Keep original Status
     ];
 
     quotesSheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
-    
-    Logger.log('=== UPDATE QUOTE SUCCESS ===');
 
     return {
       success: true,
@@ -226,13 +167,11 @@ function updateQuote(quoteData) {
       quoteNumber: quoteData.quoteNumber
     };
   } catch (error) {
-    Logger.log('=== UPDATE QUOTE ERROR ===');
-    Logger.log('Error: ' + error.toString());
     return {success: false, message: 'Error: ' + error.toString()};
   }
 }
 
-// Get all quotes - UPDATED TO INCLUDE TAX FIELDS
+// Get all quotes
 function getQuotes() {
   try {
     var ss = getSpreadsheet();
@@ -252,24 +191,24 @@ function getQuotes() {
         var items = [];
         try {
           if (row[11]) {
-            items = JSON.parse(String(row[11]));
+            items = JSON.parse(row[11]);
           }
         } catch (e) {
           items = [];
         }
 
         quotes.push({
-          quoteNumber: String(row[0]),
-          date: row[1] ? String(row[1]) : '',
-          validUntil: row[2] ? String(row[2]) : '',
-          customerId: String(row[3] || ''),
-          customerName: String(row[4] || ''),
-          customerCompany: String(row[5] || ''),
-          customerAddress: String(row[6] || ''),
-          customerCity: String(row[7] || ''),
-          customerPhone: String(row[8] || ''),
-          customerEmail: String(row[9] || ''),
-          objective: String(row[10] || ''),
+          quoteNumber: row[0],
+          date: row[1],
+          validUntil: row[2],
+          customerId: row[3],
+          customerName: row[4],
+          customerCompany: row[5],
+          customerAddress: row[6],
+          customerCity: row[7],
+          customerPhone: row[8],
+          customerEmail: row[9],
+          objective: row[10] || '',
           items: items,
           materialCost: parseFloat(row[12]) || 0,
           installationCost: parseFloat(row[13]) || 0,
@@ -278,12 +217,10 @@ function getQuotes() {
           grandTotal: parseFloat(row[16]) || 0,
           downPayment: parseFloat(row[17]) || 0,
           finalPayment: parseFloat(row[18]) || 0,
-          preparedBy: String(row[19] || ''),
-          terms: String(row[20] || ''),
-          createdAt: row[21] ? String(row[21]) : '',
-          status: String(row[22] || 'Pending'),
-          taxType: String(row[23] || 'Percentage'),  // NEW - default to Percentage
-          taxRate: parseFloat(row[24]) || 0          // NEW - default to 0
+          preparedBy: row[19],
+          terms: row[20],
+          createdAt: row[21],
+          status: row[22]
         });
       }
     }
@@ -434,7 +371,7 @@ function getSpreadsheet() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
-// Setup Quotes sheet - UPDATED WITH NEW COLUMNS
+// Setup Quotes sheet with new structure
 function setupQuotesSheet() {
   try {
     var ss = getSpreadsheet();
@@ -447,14 +384,13 @@ function setupQuotesSheet() {
     // Clear existing content
     sheet.clear();
     
-    // Set headers INCLUDING NEW TAX COLUMNS
+    // Set headers
     var headers = [
       'Quote Number', 'Date', 'Valid Until', 'Customer ID', 'Customer Name',
       'Company', 'Address', 'City', 'Phone', 'Email', 'Objective',
       'Items JSON', 'Material Cost', 'Installation Cost', 'Sub Total',
       'Sales Tax', 'Grand Total', 'Down Payment', 'Final Payment',
-      'Prepared By', 'Terms', 'Created At', 'Status',
-      'Tax Type', 'Tax Rate'  // NEW COLUMNS
+      'Prepared By', 'Terms', 'Created At', 'Status'
     ];
     
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -466,134 +402,5 @@ function setupQuotesSheet() {
     return {success: true, message: 'Quotes sheet setup complete'};
   } catch (error) {
     return {success: false, message: 'Error: ' + error.toString()};
-  }
-}
-
-/**
- * Create Invoice from Quote
- * Copies quote data to Invoices sheet with new invoice number
- */
-function createInvoiceFromQuote(quoteNumber) {
-  try {
-    var ss = getSpreadsheet();
-    var quotesSheet = ss.getSheetByName('Quotes');
-    var invoicesSheet = ss.getSheetByName('Invoices');
-    
-    if (!quotesSheet) {
-      return {success: false, message: 'Quotes sheet not found'};
-    }
-    
-    if (!invoicesSheet) {
-      return {success: false, message: 'Invoices sheet not found'};
-    }
-    
-    // Find the quote
-    var quotesData = quotesSheet.getDataRange().getValues();
-    var quoteRow = -1;
-    
-    for (var i = 1; i < quotesData.length; i++) {
-      if (quotesData[i][0].toString() === quoteNumber.toString()) {
-        quoteRow = i;
-        break;
-      }
-    }
-    
-    if (quoteRow === -1) {
-      return {success: false, message: 'Quote not found'};
-    }
-    
-    var quote = quotesData[quoteRow];
-    
-    // Check if quote is completed
-    if (quote[20] !== 'Completed') {  // Column 20 is Status (U)
-      return {success: false, message: 'Quote must be marked as Completed before creating invoice'};
-    }
-    
-    // Get next invoice number
-    var invoiceNumber = getNextInvoiceNumber();
-    
-    // Prepare invoice data (map quote columns to invoice columns)
-    var invoiceData = [
-      invoiceNumber,              // Invoice Number
-      new Date(),                 // Invoice Date
-      quote[3],                   // Customer ID
-      quote[4],                   // Customer Name
-      quote[5],                   // Company
-      quote[6],                   // Address
-      quote[7],                   // City
-      quote[8],                   // Phone
-      quote[9],                   // Email
-      quote[10],                  // Objective
-      quote[11],                  // Items JSON
-      quote[12],                  // Material Cost
-      quote[13],                  // Installation Cost
-      quote[14],                  // Sub Total
-      quote[15],                  // Sales Tax
-      quote[16],                  // Other
-      quote[17],                  // Down Payment
-      quote[18],                  // Final Payment
-      quote[19],                  // Grand Total
-      'Unpaid',                   // Payment Status
-      '',                         // Payment Date
-      quote[3],                   // Prepared By (using Customer ID temporarily)
-      new Date().toISOString(),   // Created At
-      quote[24],                  // Tax Type (X)
-      quote[25]                   // Tax Rate (Y)
-    ];
-    
-    // Append to Invoices sheet
-    invoicesSheet.appendRow(invoiceData);
-    
-    return {
-      success: true, 
-      message: 'Invoice created successfully',
-      invoiceNumber: invoiceNumber
-    };
-    
-  } catch (error) {
-    Logger.log('Error creating invoice: ' + error);
-    return {success: false, message: 'Error: ' + error.toString()};
-  }
-}
-
-/**
- * Get next invoice number
- */
-function getNextInvoiceNumber() {
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(30000);
-    
-    var ss = getSpreadsheet();
-    var invoicesSheet = ss.getSheetByName('Invoices');
-    
-    if (!invoicesSheet) {
-      return '200001';
-    }
-    
-    var lastRow = invoicesSheet.getLastRow();
-    if (lastRow <= 1) {
-      return '200001';
-    }
-    
-    // Get ALL invoice numbers and find the maximum
-    var invoiceNumbers = invoicesSheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    var maxNumber = 200000;
-    
-    for (var i = 0; i < invoiceNumbers.length; i++) {
-      var num = parseInt(invoiceNumbers[i][0]);
-      if (!isNaN(num) && num > maxNumber) {
-        maxNumber = num;
-      }
-    }
-    
-    var nextNumber = maxNumber + 1;
-    return nextNumber.toString();
-    
-  } catch (error) {
-    Logger.log('Error getting next invoice number: ' + error);
-    return '200001';
-  } finally {
-    lock.releaseLock();
   }
 }

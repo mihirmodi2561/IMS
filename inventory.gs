@@ -12,7 +12,6 @@
  * - Purchase history per item
  * - FIFO stock valuation
  * - Reorder alerts
- * - Category filtering
  */
 
 // ========================================
@@ -145,67 +144,6 @@ function getInventorySummary() {
     Logger.log('❌ CRITICAL ERROR in getInventorySummary: ' + error);
     Logger.log('❌ Error stack: ' + error.stack);
     return {success: false, message: String(error), inventory: []};
-  }
-}
-
-// ========================================
-// GET INVENTORY BY CATEGORIES (NEW)
-// ========================================
-
-/**
- * Get inventory filtered by selected categories
- * @param {Array} selectedCategories - Array of category names to filter
- * @returns {Object} - Filtered inventory result
- */
-function getInventoryByCategories(selectedCategories) {
-  try {
-    Logger.log('🔍 getInventoryByCategories() started with categories: ' + JSON.stringify(selectedCategories));
-    
-    // If no categories selected or empty array, return all
-    if (!selectedCategories || selectedCategories.length === 0) {
-      Logger.log('ℹ️ No categories selected, returning all inventory');
-      return getInventorySummary();
-    }
-    
-    // Get all inventory
-    var result = getInventorySummary();
-    
-    if (!result.success) {
-      return result;
-    }
-    
-    // Filter inventory by selected categories
-    var filteredInventory = [];
-    
-    for (var i = 0; i < result.inventory.length; i++) {
-      var item = result.inventory[i];
-      var itemCategory = String(item.category || '').trim();
-      
-      // Check if item's category is in selected categories
-      for (var j = 0; j < selectedCategories.length; j++) {
-        var selectedCat = String(selectedCategories[j]).trim();
-        
-        if (itemCategory.toLowerCase() === selectedCat.toLowerCase()) {
-          filteredInventory.push(item);
-          break; // Found match, move to next item
-        }
-      }
-    }
-    
-    Logger.log('✅ Filtered inventory: ' + filteredInventory.length + ' items out of ' + result.inventory.length);
-    
-    return {
-      success: true,
-      inventory: filteredInventory
-    };
-    
-  } catch (error) {
-    Logger.log('❌ Error in getInventoryByCategories: ' + error);
-    return {
-      success: false,
-      message: 'Error: ' + error.toString(),
-      inventory: []
-    };
   }
 }
 
@@ -488,10 +426,6 @@ function testInventory() {
   Logger.log('\n3. Get low stock items...');
   var lowStock = getLowStockItems();
   Logger.log('Low stock items: ' + lowStock.items.length);
-  
-  Logger.log('\n4. Test category filtering...');
-  var catFiltered = getInventoryByCategories(['Electronics', 'Hardware']);
-  Logger.log('Filtered items: ' + catFiltered.inventory.length);
   
   Logger.log('\n=== TEST COMPLETE ===');
 }
