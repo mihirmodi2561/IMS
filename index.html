@@ -142,7 +142,7 @@
     .sidebar-toggle {
       position: absolute;
       top: 15px;
-      right: -15px;
+      right: 10px;
       width: 30px;
       height: 30px;
       background-color: var(--navy-blue);
@@ -1436,6 +1436,25 @@
         }
         return 'user';
       });
+      
+      const [userPermissions, setUserPermissions] = useState(() => {
+        const session = localStorage.getItem('userSession');
+        if (session) {
+          try {
+            return JSON.parse(session).permissions || {};
+          } catch (e) {
+            return {};
+          }
+        }
+        return {};
+      });
+      
+      // Check if user has permission for a page/feature
+      const hasPermission = (permission) => {
+        // Admin always has all permissions
+        if (userRole === 'admin') return true;
+        return userPermissions[permission] === true;
+      };
 
       // Update activity timestamp on user interaction
       useEffect(() => {
@@ -1475,15 +1494,17 @@
         };
       }, [isLoggedIn]);
 
-      const handleLogin = (username, role) => {
+      const handleLogin = (username, role, permissions = {}) => {
         setIsLoggedIn(true);
         setCurrentUser(username);
         setUserRole(role || 'user');
+        setUserPermissions(permissions);
         
         // Save to localStorage
         const sessionData = {
           username: username,
           role: role || 'user',
+          permissions: permissions,
           timestamp: Date.now()
         };
         localStorage.setItem('userSession', JSON.stringify(sessionData));
@@ -1493,6 +1514,7 @@
         setIsLoggedIn(false);
         setCurrentUser('');
         setUserRole('user');
+        setUserPermissions({});
         localStorage.removeItem('userSession');
         localStorage.removeItem('activeMenu');
       };
@@ -1502,7 +1524,13 @@
           {!isLoggedIn ? (
             <LoginPage onLogin={handleLogin} />
           ) : (
-            <QuoteApp currentUser={currentUser} userRole={userRole} onLogout={handleLogout} />
+            <QuoteApp 
+              currentUser={currentUser} 
+              userRole={userRole} 
+              userPermissions={userPermissions}
+              hasPermission={hasPermission}
+              onLogout={handleLogout} 
+            />
           )}
         </>
       );
@@ -1524,7 +1552,7 @@
           .withSuccessHandler((result) => {
             setLoading(false);
             if (result && result.success) {
-              onLogin(result.username, result.role);
+              onLogin(result.username, result.role, result.permissions || {});
             } else {
               setError(result.message);
             }
@@ -1770,6 +1798,8 @@
       const [saving, setSaving] = useState(false);
       const [deleting, setDeleting] = useState(false);
       const [showModal, setShowModal] = useState(false);
+      const [showProfileModal, setShowProfileModal] = useState(false);
+      const [selectedCustomer, setSelectedCustomer] = useState(null);
       const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
       const [currentCustomer, setCurrentCustomer] = useState({
         id: '',
@@ -1909,6 +1939,9 @@
               orderable: false,
               render: function(data, type, row) {
                 return `
+                  <button class="btn-action btn-info" onclick="window.viewCustomerProfile('${row.id}')" title="View Profile">
+                    <i class="bi bi-person-circle"></i>
+                  </button>
                   <button class="btn-action btn-edit" onclick="window.editCustomer('${row.id}')" title="Edit Customer">
                     <i class="bi bi-pencil-fill"></i>
                   </button>
@@ -1929,6 +1962,15 @@
       };
 
       useEffect(() => {
+
+        window.viewCustomerProfile = (id) => {
+          const customer = customers.find(c => String(c.id) === String(id));
+          if (customer) {
+            setSelectedCustomer(customer);
+            setShowProfileModal(true);
+          }
+        };
+
         window.editCustomer = (id) => {
           const customer = customers.find(c => String(c.id) === String(id));
           if (customer) {
@@ -1978,6 +2020,7 @@
         };
 
         return () => {
+          delete window.viewCustomerProfile;
           delete window.editCustomer;
           delete window.deleteCustomer;
         };
@@ -2064,6 +2107,26 @@
             })
             .updateCustomer(currentCustomer);
         }
+      };
+
+      const handleProfileUpdate = (updatedCustomer) => {
+        // Update the customer in the state
+        setCustomers(customers.map(c => 
+          c.id === updatedCustomer.id ? {...c, ...updatedCustomer} : c
+        ));
+        
+        // Refresh DataTable
+        if (dataTableRef.current) {
+          dataTableRef.current.clear();
+          dataTableRef.current.rows.add(customers.map(c => 
+            c.id === updatedCustomer.id ? {...c, ...updatedCustomer} : c
+          ));
+          dataTableRef.current.draw();
+        }
+        
+        setSelectedCustomer(null);
+        setShowProfileModal(false);
+        loadCustomers(true);
       };
 
       return (
@@ -2279,9 +2342,911 @@
               </div>
             </div>
           )}
+            {/* Customer Profile Modal */}
+              {showProfileModal && selectedCustomer && (
+                  <CustomerProfileModal
+                    customer={selectedCustomer}
+                    onClose={() => {
+                      setShowProfileModal(false);
+                      setSelectedCustomer(null);
+                    }}
+                     onUpdate={handleProfileUpdate}
+                  />
+               )}
         </div>
       );
     }
+
+// ============================================
+// FIXED CustomerProfileModal Component
+// REPLACE the entire CustomerProfileModal function (around line 2365)
+// ============================================
+
+function CustomerProfileModal({ customer, onClose, onUpdate }) {
+  const [activeTab, setActiveTab] = useState('quotes');
+  const [quotes, setQuotes] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [loadingQuotes, setLoadingQuotes] = useState(false);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [viewingQuote, setViewingQuote] = useState(null);
+  const [viewingInvoice, setViewingInvoice] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [quotesLoaded, setQuotesLoaded] = useState(false);
+  const [invoicesLoaded, setInvoicesLoaded] = useState(false);
+  const [editedCustomer, setEditedCustomer] = useState({
+    id: customer.id,
+    name: customer.name,
+    companyName: customer.companyName,
+    streetAddress: customer.streetAddress,
+    city: customer.city,
+    phone: customer.phone,
+    email: customer.email
+  });
+
+  const quotesTableRef = useRef(null);
+  const invoicesTableRef = useRef(null);
+  const quotesDataTableRef = useRef(null);
+  const invoicesDataTableRef = useRef(null);
+
+  // Load quotes when component mounts
+  useEffect(() => {
+    loadCustomerQuotes();
+  }, []);
+
+  // Handle tab switching with proper DataTable re-initialization
+  useEffect(() => {
+    if (activeTab === 'quotes' && quotesLoaded && quotes.length > 0) {
+      // Re-initialize quotes table after tab becomes active
+      setTimeout(() => {
+        if (quotesTableRef.current) {
+          initQuotesTable(quotes);
+        }
+      }, 100);
+    } else if (activeTab === 'invoices' && !invoicesLoaded) {
+      // Load invoices only once
+      loadCustomerInvoices();
+    } else if (activeTab === 'invoices' && invoicesLoaded && invoices.length > 0) {
+      // Re-initialize invoices table after tab becomes active
+      setTimeout(() => {
+        if (invoicesTableRef.current) {
+          initInvoicesTable(invoices);
+        }
+      }, 100);
+    }
+  }, [activeTab]);
+
+  const loadCustomerQuotes = () => {
+    setLoadingQuotes(true);
+    google.script.run
+      .withSuccessHandler((result) => {
+        setLoadingQuotes(false);
+        if (result && result.success) {
+          setQuotes(result.quotes || []);
+          setQuotesLoaded(true);
+          setTimeout(() => initQuotesTable(result.quotes || []), 100);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: result?.message || 'Failed to load quotes'
+          });
+        }
+      })
+      .withFailureHandler((error) => {
+        setLoadingQuotes(false);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to load quotes: ' + error.message
+        });
+      })
+      .getCustomerQuotes(customer.id);
+  };
+
+  const loadCustomerInvoices = () => {
+    setLoadingInvoices(true);
+    google.script.run
+      .withSuccessHandler((result) => {
+        setLoadingInvoices(false);
+        if (result && result.success) {
+          setInvoices(result.invoices || []);
+          setInvoicesLoaded(true);
+          setTimeout(() => initInvoicesTable(result.invoices || []), 100);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: result?.message || 'Failed to load invoices'
+          });
+        }
+      })
+      .withFailureHandler((error) => {
+        setLoadingInvoices(false);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to load invoices: ' + error.message
+        });
+      })
+      .getCustomerInvoices(customer.id);
+  };
+
+  const initQuotesTable = (data) => {
+    // Destroy existing table
+    if (quotesDataTableRef.current) {
+      try {
+        quotesDataTableRef.current.destroy();
+        quotesDataTableRef.current = null;
+      } catch (e) {
+        console.log('Error destroying quotes table:', e);
+      }
+    }
+
+    // Clear the table container
+    if (quotesTableRef.current) {
+      $(quotesTableRef.current).empty();
+    }
+
+    // Only initialize if we have data and the element exists
+    if (data.length > 0 && quotesTableRef.current) {
+      setTimeout(() => {
+        quotesDataTableRef.current = $(quotesTableRef.current).DataTable({
+          data: data,
+          destroy: true,
+          columns: [
+            { data: 'quoteNumber', title: 'Quote #' },
+            { 
+              data: 'date', 
+              title: 'Date',
+              render: (data) => {
+                try {
+                  return new Date(data).toLocaleDateString();
+                } catch (e) {
+                  return data;
+                }
+              }
+            },
+            { data: 'customerName', title: 'Customer' },
+            { data: 'customerCompany', title: 'Company' },
+            { 
+              data: 'grandTotal', 
+              title: 'Total',
+              render: (data) => '$' + parseFloat(data || 0).toFixed(2)
+            },
+            { data: 'preparedBy', title: 'Prepared By' },
+            {
+              data: 'status',
+              title: 'Status',
+              render: (data) => {
+                const badges = {
+                  'Pending': 'bg-warning text-dark',
+                  'Approved': 'bg-success',
+                  'Completed': 'bg-success',
+                  'Rejected': 'bg-danger'
+                };
+                return `<span class="badge ${badges[data] || 'bg-secondary'}">${data}</span>`;
+              }
+            },
+            {
+              data: null,
+              title: 'Actions',
+              orderable: false,
+              render: (data, type, row) => {
+                return `
+                  <button class="btn-action btn-info" onclick="window.viewQuoteProfile('${row.quoteNumber}')" title="View">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                  <button class="btn-action btn-success" onclick="window.downloadQuotePDF('${row.quoteNumber}')" title="Download PDF">
+                    <i class="bi bi-file-pdf"></i>
+                  </button>
+                  <button class="btn-action btn-primary" onclick="window.emailQuote('${row.quoteNumber}')" title="Send Email">
+                    <i class="bi bi-envelope"></i>
+                  </button>
+                `;
+              }
+            }
+          ],
+          responsive: true,
+          pageLength: 10,
+          lengthMenu: [[10, 25, 50], [10, 25, 50]],
+          order: [[0, 'desc']],
+          language: {
+            emptyTable: "No quotes found for this customer"
+          }
+        });
+      }, 150);
+    }
+  };
+
+  const initInvoicesTable = (data) => {
+    // Destroy existing table
+    if (invoicesDataTableRef.current) {
+      try {
+        invoicesDataTableRef.current.destroy();
+        invoicesDataTableRef.current = null;
+      } catch (e) {
+        console.log('Error destroying invoices table:', e);
+      }
+    }
+
+    // Clear the table container
+    if (invoicesTableRef.current) {
+      $(invoicesTableRef.current).empty();
+    }
+
+    // Only initialize if we have data and the element exists
+    if (data.length > 0 && invoicesTableRef.current) {
+      setTimeout(() => {
+        invoicesDataTableRef.current = $(invoicesTableRef.current).DataTable({
+          data: data,
+          destroy: true,
+          columns: [
+            { data: 'invoiceNumber', title: 'Invoice #' },
+            { 
+              data: 'date', 
+              title: 'Date',
+              render: (data) => {
+                try {
+                  return new Date(data).toLocaleDateString();
+                } catch (e) {
+                  return data;
+                }
+              }
+            },
+            { 
+              data: 'dueDate', 
+              title: 'Due Date',
+              render: (data) => {
+                if (!data) return '-';
+                try {
+                  return new Date(data).toLocaleDateString();
+                } catch (e) {
+                  return data;
+                }
+              }
+            },
+            { data: 'customerName', title: 'Customer' },
+            { 
+              data: 'grandTotal', 
+              title: 'Total',
+              render: (data) => '$' + parseFloat(data || 0).toFixed(2)
+            },
+            {
+              data: 'status',
+              title: 'Status',
+              render: (data) => {
+                const badges = {
+                  'Paid': 'bg-success',
+                  'Unpaid': 'bg-danger',
+                  'Partial': 'bg-warning text-dark'
+                };
+                return `<span class="badge ${badges[data] || 'bg-secondary'}">${data}</span>`;
+              }
+            },
+            { 
+              data: 'quoteNumber', 
+              title: 'Quote #',
+              render: (data) => data || '-'
+            },
+            {
+              data: null,
+              title: 'Actions',
+              orderable: false,
+              render: (data, type, row) => {
+                return `
+                  <button class="btn-action btn-info" onclick="window.viewInvoiceProfile('${row.invoiceNumber}')" title="View">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                  <button class="btn-action btn-success" onclick="window.downloadInvoicePDF('${row.invoiceNumber}')" title="Download PDF">
+                    <i class="bi bi-file-pdf"></i>
+                  </button>
+                  <button class="btn-action btn-primary" onclick="window.emailInvoice('${row.invoiceNumber}')" title="Send Email">
+                    <i class="bi bi-envelope"></i>
+                  </button>
+                `;
+              }
+            }
+          ],
+          responsive: true,
+          pageLength: 10,
+          lengthMenu: [[10, 25, 50], [10, 25, 50]],
+          order: [[0, 'desc']],
+          language: {
+            emptyTable: "No invoices found for this customer"
+          }
+        });
+      }, 150);
+    }
+  };
+
+  // Set up window functions for action buttons
+  useEffect(() => {
+    window.viewQuoteProfile = (quoteNumber) => {
+      const quote = quotes.find(q => q.quoteNumber === quoteNumber);
+      if (quote) {
+        setViewingQuote(quote);
+      }
+    };
+
+    window.viewInvoiceProfile = (invoiceNumber) => {
+      const invoice = invoices.find(inv => inv.invoiceNumber === invoiceNumber);
+      if (invoice) {
+        setViewingInvoice(invoice);
+      }
+    };
+
+    window.downloadQuotePDF = (quoteNumber) => {
+      Swal.fire({
+        icon: 'info',
+        title: 'Generating PDF...',
+        text: 'Please wait',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      google.script.run
+        .withSuccessHandler(() => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: 'PDF generated successfully'
+          });
+        })
+        .withFailureHandler((error) => {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to generate PDF: ' + error.message
+          });
+        })
+        .generateQuotePDF(quoteNumber);
+    };
+
+    window.downloadInvoicePDF = (invoiceNumber) => {
+      Swal.fire({
+        icon: 'info',
+        title: 'PDF Generation',
+        text: 'Invoice PDF generation for: ' + invoiceNumber
+      });
+    };
+
+    window.emailQuote = (quoteNumber) => {
+      Swal.fire({
+        icon: 'info',
+        title: 'Send Email',
+        text: 'Email functionality for quote: ' + quoteNumber
+      });
+    };
+
+    window.emailInvoice = (invoiceNumber) => {
+      Swal.fire({
+        icon: 'info',
+        title: 'Send Email',
+        text: 'Email functionality for invoice: ' + invoiceNumber
+      });
+    };
+
+    return () => {
+      delete window.viewQuoteProfile;
+      delete window.viewInvoiceProfile;
+      delete window.downloadQuotePDF;
+      delete window.downloadInvoicePDF;
+      delete window.emailQuote;
+      delete window.emailInvoice;
+      
+      // Clean up DataTables on unmount
+      if (quotesDataTableRef.current) {
+        try {
+          quotesDataTableRef.current.destroy();
+        } catch (e) {}
+      }
+      if (invoicesDataTableRef.current) {
+        try {
+          invoicesDataTableRef.current.destroy();
+        } catch (e) {}
+      }
+    };
+  }, [quotes, invoices]);
+
+  const handleSaveCustomer = () => {
+    setSaving(true);
+    google.script.run
+      .withSuccessHandler((result) => {
+        setSaving(false);
+        if (result && result.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: 'Customer updated successfully'
+          });
+          setEditMode(false);
+          onUpdate(editedCustomer);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: result?.message || 'Failed to update customer'
+          });
+        }
+      })
+      .withFailureHandler((error) => {
+        setSaving(false);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to update customer: ' + error.message
+        });
+      })
+      .updateCustomer(editedCustomer);
+  };
+
+  return (
+    <>
+      {/* Main Customer Profile Modal */}
+      <div 
+        className="modal fade show" 
+        style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050}} 
+        onClick={onClose}
+      >
+        <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">
+                <i className="bi bi-person-circle me-2"></i>
+                Customer Profile - {customer.name}
+              </h5>
+              <button type="button" className="btn-close" onClick={onClose}></button>
+            </div>
+            <div className="modal-body">
+              
+              {/* Customer Information Section */}
+              <div className="card mb-3">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                  <h6 className="mb-0">Customer Information</h6>
+                  {!editMode ? (
+                    <button className="btn btn-sm btn-primary" onClick={() => setEditMode(true)}>
+                      <i className="bi bi-pencil me-1"></i>
+                      Edit
+                    </button>
+                  ) : (
+                    <div>
+                      <button className="btn btn-sm btn-success me-2" onClick={handleSaveCustomer} disabled={saving}>
+                        {saving ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-check me-1"></i>
+                            Save
+                          </>
+                        )}
+                      </button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setEditMode(false)} disabled={saving}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="card-body">
+                  <div className="row">
+                    <div className="col-md-4">
+                      <strong>ID:</strong><br/>
+                      <input 
+                        type="text" 
+                        className="form-control-plaintext" 
+                        value={customer.id} 
+                        readOnly 
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <strong>Name:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={editedCustomer.name} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, name: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.name} readOnly />
+                      )}
+                    </div>
+                    <div className="col-md-4">
+                      <strong>Company:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={editedCustomer.companyName} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, companyName: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.companyName} readOnly />
+                      )}
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-md-4">
+                      <strong>Email:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="email" 
+                          className="form-control" 
+                          value={editedCustomer.email} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, email: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.email} readOnly />
+                      )}
+                    </div>
+                    <div className="col-md-4">
+                      <strong>Phone:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={editedCustomer.phone} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, phone: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.phone} readOnly />
+                      )}
+                    </div>
+                    <div className="col-md-4">
+                      <strong>Total Quotes:</strong>
+                      <span className="badge bg-primary ms-2">{customer.quoteCount || 0}</span>
+                      <br/>
+                      <strong>Total Invoices:</strong>
+                      <span className="badge bg-success ms-2">{customer.invoiceCount || 0}</span>
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-md-4">
+                      <strong>Address:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={editedCustomer.streetAddress} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, streetAddress: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.streetAddress} readOnly />
+                      )}
+                    </div>
+                    <div className="col-md-6">
+                      <strong>City:</strong><br/>
+                      {editMode ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={editedCustomer.city} 
+                          onChange={(e) => setEditedCustomer({...editedCustomer, city: e.target.value})}
+                        />
+                      ) : (
+                        <input type="text" className="form-control-plaintext" value={customer.city} readOnly />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs Section */}
+              <ul className="nav nav-tabs">
+                <li className="nav-item">
+                  <button 
+                    className={`nav-link ${activeTab === 'quotes' ? 'active' : ''}`} 
+                    onClick={() => setActiveTab('quotes')}
+                  >
+                    All Quotes
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button 
+                    className={`nav-link ${activeTab === 'invoices' ? 'active' : ''}`} 
+                    onClick={() => setActiveTab('invoices')}
+                  >
+                    Invoices
+                  </button>
+                </li>
+              </ul>
+
+              {/* Tab Content */}
+              <div className="tab-content p-3 border border-top-0">
+                {/* Quotes Tab */}
+                {activeTab === 'quotes' && (
+                  <div>
+                    {loadingQuotes ? (
+                      <div className="text-center py-5">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="mt-2">Loading quotes...</p>
+                      </div>
+                    ) : quotes.length === 0 ? (
+                      <div className="alert alert-info">
+                        <i className="bi bi-info-circle me-2"></i>
+                        No quotes found for this customer
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table ref={quotesTableRef} className="table table-striped table-hover" style={{width: '100%'}}></table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Invoices Tab */}
+                {activeTab === 'invoices' && (
+                  <div>
+                    {loadingInvoices ? (
+                      <div className="text-center py-5">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="mt-2">Loading invoices...</p>
+                      </div>
+                    ) : invoices.length === 0 ? (
+                      <div className="alert alert-info">
+                        <i className="bi bi-info-circle me-2"></i>
+                        No invoices found for this customer
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table ref={invoicesTableRef} className="table table-striped table-hover" style={{width: '100%'}}></table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nested Quote View Modal */}
+      {viewingQuote && (
+        <div 
+          className="modal fade show" 
+          style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1060}} 
+          onClick={() => setViewingQuote(null)}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-file-text me-2"></i>
+                  Quote Details - {viewingQuote.quoteNumber}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setViewingQuote(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-3">
+                  <div className="col-md-3">
+                    <strong>Date:</strong><br/>
+                    {new Date(viewingQuote.date).toLocaleDateString()}
+                  </div>
+                  <div className="col-md-3">
+                    <strong>Quote #:</strong><br/>
+                    {viewingQuote.quoteNumber}
+                  </div>
+                  <div className="col-md-3">
+                    <strong>Valid Until:</strong><br/>
+                    {new Date(viewingQuote.validUntil).toLocaleDateString()}
+                  </div>
+                  <div className="col-md-3">
+                    <strong>Prepared By:</strong><br/>
+                    {viewingQuote.preparedBy}
+                  </div>
+                </div>
+
+                {viewingQuote.objective && (
+                  <>
+                    <hr/>
+                    <h6><strong>Objective</strong></h6>
+                    <p>{viewingQuote.objective}</p>
+                  </>
+                )}
+
+                {viewingQuote.items && viewingQuote.items.length > 0 && (
+                  <>
+                    <hr/>
+                    <h6><strong>Equipment</strong></h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark">
+                          <tr>
+                            <th>Item</th>
+                            <th>Model Number</th>
+                            <th>Item Name</th>
+                            <th>Category</th>
+                            <th>QTY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewingQuote.items.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>{idx + 1}</td>
+                              <td>{item.modelNumber}</td>
+                              <td>{item.itemName}</td>
+                              <td>{item.category}</td>
+                              <td>{item.qty}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                <hr/>
+                <h6><strong>Totals</strong></h6>
+                <table className="table table-sm">
+                  <tbody>
+                    <tr>
+                      <td><strong>Material Cost:</strong></td>
+                      <td className="text-end">${viewingQuote.materialCost.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Installation & Training:</strong></td>
+                      <td className="text-end">${viewingQuote.installationCost.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Sub Total:</strong></td>
+                      <td className="text-end">${viewingQuote.subTotal.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Sales Tax:</strong></td>
+                      <td className="text-end">${viewingQuote.salesTax.toFixed(2)}</td>
+                    </tr>
+                    <tr className="table-primary">
+                      <td><strong>Grand Total:</strong></td>
+                      <td className="text-end"><strong>${viewingQuote.grandTotal.toFixed(2)}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h6><strong>Payment Schedule</strong></h6>
+                <table className="table table-sm">
+                  <tbody>
+                    <tr>
+                      <td><strong>Down Payment:</strong></td>
+                      <td className="text-end">${viewingQuote.downPayment.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Final Payment:</strong></td>
+                      <td className="text-end">${viewingQuote.finalPayment.toFixed(2)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setViewingQuote(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nested Invoice View Modal */}
+      {viewingInvoice && (
+        <div 
+          className="modal fade show" 
+          style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1060}} 
+          onClick={() => setViewingInvoice(null)}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-receipt me-2"></i>
+                  Invoice Details - {viewingInvoice.invoiceNumber}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setViewingInvoice(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-3">
+                  <div className="col-md-4">
+                    <strong>Invoice #:</strong><br/>
+                    {viewingInvoice.invoiceNumber}
+                  </div>
+                  <div className="col-md-4">
+                    <strong>Date:</strong><br/>
+                    {new Date(viewingInvoice.date).toLocaleDateString()}
+                  </div>
+                  <div className="col-md-4">
+                    <strong>Due Date:</strong><br/>
+                    {viewingInvoice.dueDate ? new Date(viewingInvoice.dueDate).toLocaleDateString() : '-'}
+                  </div>
+                </div>
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <strong>Status:</strong><br/>
+                    <span className={`badge ${
+                      viewingInvoice.status === 'Paid' ? 'bg-success' :
+                      viewingInvoice.status === 'Unpaid' ? 'bg-danger' :
+                      'bg-warning text-dark'
+                    }`}>
+                      {viewingInvoice.status}
+                    </span>
+                  </div>
+                  <div className="col-md-6">
+                    <strong>Quote #:</strong><br/>
+                    {viewingInvoice.quoteNumber || '-'}
+                  </div>
+                </div>
+
+                {viewingInvoice.items && viewingInvoice.items.length > 0 && (
+                  <>
+                    <hr/>
+                    <h6><strong>Items</strong></h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark">
+                          <tr>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th>QTY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewingInvoice.items.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>{idx + 1}</td>
+                              <td>{item.itemName || item.description}</td>
+                              <td>{item.qty}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                <hr/>
+                <h6><strong>Totals</strong></h6>
+                <table className="table table-sm">
+                  <tbody>
+                    <tr className="table-primary">
+                      <td><strong>Grand Total:</strong></td>
+                      <td className="text-end"><strong>${viewingInvoice.grandTotal.toFixed(2)}</strong></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Paid Amount:</strong></td>
+                      <td className="text-end">${viewingInvoice.paidAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Balance Due:</strong></td>
+                      <td className="text-end">${(viewingInvoice.grandTotal - viewingInvoice.paidAmount).toFixed(2)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setViewingInvoice(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 
     // Stocks View Component -- FunStocks
     function StocksView() {
@@ -3316,6 +4281,7 @@
       const [quotes, setQuotes] = useState([]);
       const [allQuotes, setAllQuotes] = useState([]);
       const [stocks, setStocks] = useState([]);
+      const [items, setItems] = useState([]);
       const [loading, setLoading] = useState(true);
       const [deleting, setDeleting] = useState(false);
       const [alert, setAlert] = useState({ show: false, type: '', message: '' });
@@ -3338,7 +4304,7 @@
       const [editCustomerPhone, setEditCustomerPhone] = useState('');
       const [editCustomerEmail, setEditCustomerEmail] = useState('');
       const [editLineItems, setEditLineItems] = useState([]);
-      const [editTaxRate, setEditTaxRate] = useState(0.0625);
+      
       const [editOther, setEditOther] = useState(0);
       const [editPreparedBy, setEditPreparedBy] = useState('');
       
@@ -3348,6 +4314,8 @@
       const [editInstallationCost, setEditInstallationCost] = useState(0);
       const [editSalesTax, setEditSalesTax] = useState(0);
       const [editDownPayment, setEditDownPayment] = useState(0);
+      const [editTaxType, setEditTaxType] = useState('Percentage');
+      const [editTaxRate, setEditTaxRate] = useState(0);
 
       const tableRef = useRef(null);
       const dataTableRef = useRef(null);
@@ -3355,7 +4323,19 @@
       useEffect(() => {
         loadQuotes();
         loadStocks();
+        loadItems();  // Add this
       }, []);
+
+      useEffect(() => {
+        const subTotal = parseFloat(editMaterialCost) + parseFloat(editInstallationCost);
+        if (editTaxType === 'Exempt') {
+          setEditSalesTax(0);
+        } else {
+          const calculatedTax = subTotal * (parseFloat(editTaxRate) / 100);
+          setEditSalesTax(calculatedTax);
+        }
+      
+      }, [editMaterialCost, editInstallationCost, editTaxType, editTaxRate]);
 
       const loadStocks = () => {
         google.script.run
@@ -3368,6 +4348,19 @@
             console.error('Failed to load stocks:', error);
           })
           .getStocks();
+      };
+
+      const loadItems = () => {
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (result && result.success) {
+              setItems(result.items || []);
+            }
+          })
+          .withFailureHandler((error) => {
+            console.error('Failed to load items:', error);
+          })
+          .getAllItems();
       };
 
       const loadQuotes = (refresh = false) => {
@@ -3549,6 +4542,8 @@
         setEditInstallationCost(parseFloat(quote.installationCost) || 0);
         setEditSalesTax(parseFloat(quote.salesTax) || 0);
         setEditDownPayment(parseFloat(quote.downPayment) || 0);
+        setEditTaxType(quote.taxType || 'Percentage');        // ADD THIS
+        setEditTaxRate(parseFloat(quote.taxRate) || 0);       // ADD THIS
       };
 
       useEffect(() => {
@@ -3779,42 +4774,162 @@
         setEditMode(!editMode);
       };
 
+      const updateEditItemByModel = (index, modelNumber) => {
+        const newItems = [...editLineItems];
+        
+        if (!modelNumber) {
+          newItems[index] = {
+            itemNumber: index + 1,
+            modelNumber: '',
+            itemName: '',
+            category: '',
+            qty: 1,
+            lockedField: ''
+          };
+          setEditLineItems(newItems);
+          return;
+        }
+        
+        // Search in items array (not stocks)
+        const foundItem = items.find(item => item.modelNumber === modelNumber);
+        
+        if (foundItem) {
+          // Exact match - fill all fields and lock name field
+          newItems[index] = {
+            itemNumber: index + 1,
+            modelNumber: foundItem.modelNumber,
+            itemName: foundItem.itemName,
+            category: foundItem.category,
+            qty: newItems[index].qty || 1,
+            lockedField: 'name'
+          };
+        } else {
+          // Still typing - don't lock
+          newItems[index] = {
+            ...newItems[index],
+            modelNumber: modelNumber,
+            lockedField: ''
+          };
+        }
+        
+        setEditLineItems(newItems);
+      };
+
+      const updateEditItemByName = (index, itemName) => {
+        const newItems = [...editLineItems];
+        
+        if (!itemName) {
+          newItems[index] = {
+            itemNumber: index + 1,
+            modelNumber: '',
+            itemName: '',
+            category: '',
+            qty: 1,
+            lockedField: ''
+          };
+          setEditLineItems(newItems);
+          return;
+        }
+        
+        // Search in items array (not stocks)
+        const foundItem = items.find(item => item.itemName === itemName);
+        
+        if (foundItem) {
+          // Exact match - fill all fields and lock model field
+          newItems[index] = {
+            itemNumber: index + 1,
+            modelNumber: foundItem.modelNumber,
+            itemName: foundItem.itemName,
+            category: foundItem.category,
+            qty: newItems[index].qty || 1,
+            lockedField: 'model'
+          };
+        } else {
+          // Still typing - don't lock
+          newItems[index] = {
+            ...newItems[index],
+            itemName: itemName,
+            lockedField: ''
+          };
+        }
+        
+        setEditLineItems(newItems);
+      };
+
+      // Update item quantity
+      const updateEditItemQty = (index, qty) => {
+        const newItems = [...editLineItems];
+        newItems[index].qty = parseInt(qty) || 1;
+        setEditLineItems(newItems);
+      };
+
+      // Add new line item with proper structure
+      const addEditLineItem = () => {
+        setEditLineItems([
+          ...editLineItems,
+          {
+            itemNumber: editLineItems.length + 1,
+            modelNumber: '',
+            itemName: '',
+            category: '',
+            qty: 1,
+            lockedField: ''
+          }
+        ]);
+      };
+
+      // Remove line item
+      const removeEditLineItem = (index) => {
+        if (editLineItems.length > 1) {
+          const newItems = editLineItems.filter((_, i) => i !== index);
+          // Renumber items
+          newItems.forEach((item, i) => {
+            item.itemNumber = i + 1;
+          });
+          setEditLineItems(newItems);
+        }
+      };
+
+      // Updated handleUpdateQuote function
       const handleUpdateQuote = () => {
         // Validation
-        if (!editCustomerName) {
-          showAlert('warning', 'Please enter customer name');
+        if (!viewingQuote.customerName) {
+          showAlert('warning', 'Customer name is required');
           return;
         }
 
-        if (editLineItems.length === 0 || !editLineItems[0].description) {
-          showAlert('warning', 'Please add at least one line item');
+        // Validate items
+        const validItems = editLineItems.filter(item => item.modelNumber && item.itemName);
+        
+        if (validItems.length === 0) {
+          showAlert('warning', 'Please add at least one item with model number and name');
           return;
         }
 
-        const subtotal = calculateSubtotal(editLineItems);
-        const taxRateDecimal = parseFloat(editTaxRate) / 100; // Convert percentage to decimal
-        const taxAmount = calculateTaxableAmount(editLineItems) * taxRateDecimal;
-        const total = subtotal + taxAmount + parseFloat(editOther || 0);
-
+        // Prepare quote data with NEW structure
         const quoteData = {
           quoteNumber: viewingQuote.quoteNumber,
-          date: new Date(editDate).toISOString(),
-          validUntil: new Date(editValidUntil).toISOString(),
-          customerId: editCustomerId,
-          customerName: editCustomerName,
-          customerCompany: editCustomerCompany,
-          customerAddress: editCustomerAddress,
-          customerCity: editCustomerCity,
-          customerPhone: editCustomerPhone,
-          customerEmail: editCustomerEmail,
-          lineItems: editLineItems,
-          subtotal: subtotal,
-          taxRate: taxRateDecimal, // Save as decimal
-          taxAmount: taxAmount,
-          other: parseFloat(editOther || 0),
-          total: total,
-          preparedBy: editPreparedBy,
-          terms: 'Payment due within 30 days'
+          date: viewingQuote.date,  // Keep original
+          validUntil: viewingQuote.validUntil,  // Keep original
+          // CUSTOMER DATA - Keep original (READ-ONLY)
+          customerId: viewingQuote.customerId,
+          customerName: viewingQuote.customerName,
+          customerCompany: viewingQuote.customerCompany,
+          customerAddress: viewingQuote.customerAddress,
+          customerCity: viewingQuote.customerCity,
+          customerPhone: viewingQuote.customerPhone,
+          customerEmail: viewingQuote.customerEmail,
+          // EDITABLE FIELDS
+          objective: editObjective,
+          items: validItems,  // Use NEW items structure
+          materialCost: editMaterialCost,
+          installationCost: editInstallationCost,
+          salesTax: editSalesTax,
+          downPayment: editDownPayment,
+          taxType: editTaxType,                      // ADD THIS
+          taxRate: editTaxRate,                      // ADD THIS
+          preparedBy: viewingQuote.preparedBy,  // Keep original
+          terms: viewingQuote.terms || 'Payment due within 30 days'
         };
 
         setSavingQuote(true);
@@ -3841,6 +4956,7 @@
           .updateQuote(quoteData);
       };
 
+
       const updateEditLineItem = (index, field, value) => {
         const newItems = [...editLineItems];
         newItems[index][field] = value;
@@ -3858,15 +4974,6 @@
         newItems[index].description = stockItem.itemName;
         newItems[index].unitPrice = stockItem.salePrice;
         newItems[index].amount = parseFloat(stockItem.salePrice) * parseInt(newItems[index].qty || 1);
-        setEditLineItems(newItems);
-      };
-
-      const addEditLineItem = () => {
-        setEditLineItems([...editLineItems, { description: '', unitPrice: 0, qty: 1, taxed: false, amount: 0 }]);
-      };
-
-      const removeEditLineItem = (index) => {
-        const newItems = editLineItems.filter((_, i) => i !== index);
         setEditLineItems(newItems);
       };
 
@@ -4016,7 +5123,7 @@
                   </div>
                 </div>
 
-                {/* Customer Section */}
+                {/* Customer Section - ALWAYS READ-ONLY */}
                 <div className="section-header">CUSTOMER</div>
                 <div className="row mb-3 customer-print-layout">
                   <div className="col-md-6 mb-2 print-field">
@@ -4024,9 +5131,9 @@
                     <input
                       type="text"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerName : viewingQuote.customerName}
-                      onChange={(e) => editMode && setEditCustomerName(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerName}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                   <div className="col-md-6 mb-2 print-field">
@@ -4034,9 +5141,9 @@
                     <input
                       type="text"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerCompany : viewingQuote.customerCompany}
-                      onChange={(e) => editMode && setEditCustomerCompany(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerCompany}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                   <div className="col-md-6 mb-2 print-field">
@@ -4044,9 +5151,9 @@
                     <input
                       type="text"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerAddress : viewingQuote.customerAddress}
-                      onChange={(e) => editMode && setEditCustomerAddress(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerAddress}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                   <div className="col-md-6 mb-2 print-field">
@@ -4054,9 +5161,9 @@
                     <input
                       type="text"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerCity : viewingQuote.customerCity}
-                      onChange={(e) => editMode && setEditCustomerCity(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerCity}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                   <div className="col-md-6 mb-2 print-field">
@@ -4064,9 +5171,9 @@
                     <input
                       type="text"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerPhone : viewingQuote.customerPhone}
-                      onChange={(e) => editMode && setEditCustomerPhone(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerPhone}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                   <div className="col-md-6 mb-2 print-field">
@@ -4074,60 +5181,151 @@
                     <input
                       type="email"
                       className="form-control form-control-sm print-field-value"
-                      value={editMode ? editCustomerEmail : (viewingQuote.customerEmail || '')}
-                      onChange={(e) => editMode && setEditCustomerEmail(e.target.value)}
-                      readOnly={!editMode}
+                      value={viewingQuote.customerEmail || ''}
+                      readOnly
+                      style={{backgroundColor: '#f8f9fa'}}
                     />
                   </div>
                 </div>
 
-                {/* OBJECTIVE SECTION - NEW */}
+                {/* OBJECTIVE SECTION - EDITABLE */}
                 <div className="section-header">OBJECTIVE</div>
                 <div className="mb-4">
                   <textarea
                     className="form-control"
                     rows="4"
                     placeholder="Enter project objective and description..."
-                    value={editObjective}
-                    onChange={(e) => setEditObjective(e.target.value)}
+                    value={editMode ? editObjective : (viewingQuote.objective || '')}
+                    onChange={(e) => editMode && setEditObjective(e.target.value)}
                     readOnly={!editMode}
-                    style={{fontSize: '14px', lineHeight: '1.6', resize: 'vertical', backgroundColor: editMode ? 'white' : '#f8f9fa'}}
+                    style={{
+                      fontSize: '14px', 
+                      lineHeight: '1.6', 
+                      resize: 'vertical', 
+                      backgroundColor: editMode ? 'white' : '#f8f9fa'
+                    }}
                   />
                 </div>
 
-                {/* Line Items */}
+                {/* Line Items - FULLY EDITABLE */}
                 <div className="section-header">EQUIPMENT</div>
-                <table className="items-table">
-                  <thead>
-                    <tr>
-                      <th style={{width: '5%'}}>Item</th>
-                      <th style={{width: '25%'}}>Model Number</th>
-                      <th style={{width: '35%'}}>Item Name</th>
-                      <th style={{width: '20%'}}>Category</th>
-                      <th style={{width: '15%'}}>QTY</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(editMode ? editLineItems : (viewingQuote.items || [])).map((item, index) => (
-                      <tr key={index}>
-                        <td style={{textAlign: 'center'}}>{item.itemNumber || (index + 1)}</td>
-                        <td>{item.modelNumber || ''}</td>
-                        <td>{item.itemName || ''}</td>
-                        <td>{item.category || ''}</td>
-                        <td style={{textAlign: 'center'}}>{item.qty || 0}</td>
+                {!editMode ? (
+                  // VIEW MODE - Just display
+                  <table className="items-table">
+                    <thead>
+                      <tr>
+                        <th style={{width: '5%'}}>Item</th>
+                        <th style={{width: '25%'}}>Model Number</th>
+                        <th style={{width: '35%'}}>Item Name</th>
+                        <th style={{width: '20%'}}>Category</th>
+                        <th style={{width: '15%'}}>QTY</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {editMode && (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-success mt-2 no-print"
-                    onClick={addEditLineItem}
-                  >
-                    <i className="bi bi-plus-circle me-1"></i>
-                    Add Line Item
-                  </button>
+                    </thead>
+                    <tbody>
+                      {(viewingQuote.items || []).map((item, index) => (
+                        <tr key={index}>
+                          <td style={{textAlign: 'center'}}>{item.itemNumber || (index + 1)}</td>
+                          <td>{item.modelNumber || ''}</td>
+                          <td>{item.itemName || ''}</td>
+                          <td>{item.category || ''}</td>
+                          <td style={{textAlign: 'center'}}>{item.qty || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  // EDIT MODE - Full editing capabilities
+                  <>
+                    <table className="items-table">
+                      <thead>
+                        <tr>
+                          <th style={{width: '5%'}}>Item</th>
+                          <th style={{width: '22%'}}>Model Number *</th>
+                          <th style={{width: '30%'}}>Item Name *</th>
+                          <th style={{width: '18%'}}>Category</th>
+                          <th style={{width: '12%'}}>QTY *</th>
+                          <th style={{width: '8%'}} className="no-print">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editLineItems.map((item, index) => (
+                          <tr key={index}>
+                            <td style={{textAlign: 'center'}}>{index + 1}</td>
+                            <td>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                placeholder="Type to search..."
+                                value={item.modelNumber || ''}
+                                onChange={(e) => updateEditItemByModel(index, e.target.value)}
+                                list={'edit-model-' + index}
+                                disabled={item.lockedField === 'model'}
+                              />
+                              <datalist id={'edit-model-' + index}>
+                                {items.map((item, i) => (
+                                  <option key={i} value={item.modelNumber} />
+                                ))}
+                              </datalist>
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                placeholder="Type to search..."
+                                value={item.itemName || ''}
+                                onChange={(e) => updateEditItemByName(index, e.target.value)}
+                                list={'edit-name-' + index}
+                                disabled={item.lockedField === 'name'}
+                              />
+                              <datalist id={'edit-name-' + index}>
+                                {items.map((item, i) => (
+                                  <option key={i} value={item.itemName} />
+                                ))}
+                              </datalist>
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                value={item.category || ''}
+                                readOnly
+                                style={{backgroundColor: '#f8f9fa'}}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={item.qty || 1}
+                                onChange={(e) => updateEditItemQty(index, e.target.value)}
+                                min="1"
+                              />
+                            </td>
+                            <td className="text-center no-print">
+                              {editLineItems.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => removeEditLineItem(index)}
+                                  title="Delete item"
+                                >
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-success mt-2 no-print"
+                      onClick={addEditLineItem}
+                    >
+                      <i className="bi bi-plus-circle me-1"></i>
+                      Add Line Item
+                    </button>
+                  </>
                 )}
 
                 {/* Totals Section -- all quote */}
@@ -4196,23 +5394,61 @@
                         </tr>
                         <tr>
                           <td>Sales Tax</td>
-                          <td>
-                            {editMode ? (
-                              <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                                <span>$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  className="form-control form-control-sm"
-                                  style={{width: '100px'}}
-                                  value={editSalesTax}
-                                  onChange={(e) => setEditSalesTax(parseFloat(e.target.value) || 0)}
-                                />
+                          {editMode ? (
+                            <td className="text-end">
+                              <div className="d-flex gap-2 align-items-center justify-content-end">
+                                <select
+                                  className="form-select form-select-sm"
+                                  style={{width: '130px'}}
+                                  value={editTaxType}
+                                  onChange={(e) => setEditTaxType(e.target.value)}
+                                >
+                                  <option value="Percentage">Percentage</option>
+                                  <option value="Exempt">Exempt</option>
+                                </select>
+                                {editTaxType === 'Percentage' ? (
+                                  <div className="input-group input-group-sm" style={{width: '100px'}}>
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm"
+                                      value={editTaxRate}
+                                      onChange={(e) => setEditTaxRate(e.target.value)}
+                                      step="0.01"
+                                      min="0"
+                                      max="100"
+                                      placeholder="0.00"
+                                    />
+                                    <span className="input-group-text">%</span>
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{width: '100px', backgroundColor: '#f8f9fa'}}
+                                    value="$0.00"
+                                    readOnly
+                                  />
+                                )}
+                                <span style={{fontSize: '13px', fontWeight: 'bold', minWidth: '70px'}}>
+                                  = ${parseFloat(editSalesTax).toFixed(2)}
+                                </span>
                               </div>
-                            ) : (
-                              `$ ${parseFloat(viewingQuote.salesTax || 0).toFixed(2)}`
-                            )}
-                          </td>
+                            </td>
+                          ) : (
+                            <td className="text-end">
+                              {viewingQuote.taxType === 'Exempt' ? (
+                                <span>
+                                  <span className="badge bg-secondary me-2">Exempt</span>
+                                  $ {parseFloat(viewingQuote.salesTax || 0).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span>
+                                  <span className="badge bg-primary me-2">{parseFloat(viewingQuote.taxRate || 0).toFixed(2)}%</span>
+                                  $ {parseFloat(viewingQuote.salesTax || 0).toFixed(2)}
+                                </span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                         <tr className="total-row">
                           <td>GRAND TOTAL</td>
@@ -4461,6 +5697,8 @@
         installationCost: 0,
         salesTax: 0,
         downPayment: 0,
+        taxType: 'Percentage',  // ADD THIS
+        taxRate: 0,             // ADD THIS
         terms: 'Payment due within 30 days',
         preparedBy: 'admin'
       });
@@ -4478,6 +5716,17 @@
       useEffect(() => {
         loadInvoices();
       }, []);
+
+      // ADD THIS NEW useEffect:
+      useEffect(() => {
+        const subTotal = parseFloat(manualInvoice.materialCost) + parseFloat(manualInvoice.installationCost);
+        if (manualInvoice.taxType === 'Exempt') {
+          setManualInvoice(prev => ({...prev, salesTax: 0}));
+        } else {
+          const calculatedTax = subTotal * (parseFloat(manualInvoice.taxRate) / 100);
+          setManualInvoice(prev => ({...prev, salesTax: calculatedTax}));
+        }
+      }, [manualInvoice.materialCost, manualInvoice.installationCost, manualInvoice.taxType, manualInvoice.taxRate]);
 
       useEffect(() => {
         filterInvoices();
@@ -4987,6 +6236,8 @@
           grandTotal: totals.grandTotal,
           downPayment: manualInvoice.downPayment,
           finalPayment: totals.finalPayment,
+          taxType: manualInvoice.taxType,           // ADD THIS
+          taxRate: manualInvoice.taxRate,           // ADD THIS
           terms: manualInvoice.terms,
           preparedBy: manualInvoice.preparedBy
         };
@@ -5009,6 +6260,8 @@
                 installationCost: 0,
                 salesTax: 0,
                 downPayment: 0,
+                taxType: 'Percentage',  // RESET TO DEFAULT
+                taxRate: 0,             // RESET TO 0
                 terms: 'Payment due within 30 days',
                 preparedBy: 'admin'
               });
@@ -5660,13 +6913,46 @@
                           </div>
                           <div className="col-md-6 mt-2">
                             <label className="form-label">Sales Tax</label>
-                            <input
-                              type="number"
-                              className="form-control"
-                              value={manualInvoice.salesTax}
-                              onChange={(e) => setManualInvoice({...manualInvoice, salesTax: parseFloat(e.target.value) || 0})}
-                              step="0.01"
-                            />
+                            <div className="row g-2">
+                              <div className="col-6">
+                                <select
+                                  className="form-select"
+                                  value={manualInvoice.taxType}
+                                  onChange={(e) => setManualInvoice({...manualInvoice, taxType: e.target.value})}
+                                >
+                                  <option value="Percentage">Percentage</option>
+                                  <option value="Exempt">Exempt</option>
+                                </select>
+                              </div>
+                              <div className="col-6">
+                                {manualInvoice.taxType === 'Percentage' ? (
+                                  <div className="input-group">
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      value={manualInvoice.taxRate}
+                                      onChange={(e) => setManualInvoice({...manualInvoice, taxRate: parseFloat(e.target.value) || 0})}
+                                      step="0.01"
+                                      min="0"
+                                      max="100"
+                                      placeholder="0.00"
+                                    />
+                                    <span className="input-group-text">%</span>
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    value="$0.00"
+                                    readOnly
+                                    style={{backgroundColor: '#f8f9fa', textAlign: 'right'}}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-end mt-1" style={{fontSize: '12px', color: '#666'}}>
+                              <strong>Tax Amount: ${parseFloat(manualInvoice.salesTax).toFixed(2)}</strong>
+                            </div>
                           </div>
                           <div className="col-md-12 mt-2">
                             <label className="form-label">GRAND TOTAL</label>
@@ -5703,19 +6989,7 @@
                     </div>
 
                     {/* Terms & Conditions */}
-                    <div className="card mb-3">
-                      <div className="card-header bg-light">
-                        <h6 className="mb-0"><i className="bi bi-file-text me-2"></i>Terms & Conditions</h6>
-                      </div>
-                      <div className="card-body">
-                        <textarea
-                          className="form-control"
-                          rows="2"
-                          value={manualInvoice.terms}
-                          onChange={(e) => setManualInvoice({...manualInvoice, terms: e.target.value})}
-                        ></textarea>
-                      </div>
-                    </div> */}
+
                   </div>
                   
 
@@ -5768,6 +7042,15 @@
         role: 'user'
       });
       const [oldUsername, setOldUsername] = useState('');
+      
+      // Permission Management States
+      const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+      const [editingPermissions, setEditingPermissions] = useState({
+        username: '',
+        permissions: {}
+      });
+      const [savingPermissions, setSavingPermissions] = useState(false);
+      
       const tableRef = useRef(null);
       const dataTableRef = useRef(null);
 
@@ -5849,6 +7132,9 @@
               orderable: false,
               render: function(data, type, row) {
                 return `
+                  <button class="btn-action btn-warning" onclick="window.managePermissions('${row.username}')" title="Manage Permissions">
+                    <i class="bi bi-shield-lock"></i>
+                  </button>
                   <button class="btn-action btn-edit" onclick="window.editUser('${row.username}')" title="Edit User">
                     <i class="bi bi-pencil-fill"></i>
                   </button>
@@ -5869,6 +7155,17 @@
       };
 
       useEffect(() => {
+        window.managePermissions = (username) => {
+          const user = users.find(u => u.username === username);
+          if (user) {
+            setEditingPermissions({
+              username: username,
+              permissions: user.permissions || {}
+            });
+            setShowPermissionsModal(true);
+          }
+        };
+        
         window.editUser = (username) => {
           const user = users.find(u => u.username === username);
           if (user) {
@@ -6005,6 +7302,37 @@
             .updateUser(oldUsername, currentUser);
         }
       };
+      
+      const handleSavePermissions = () => {
+        setSavingPermissions(true);
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            setSavingPermissions(false);
+            if (result && result.success) {
+              showAlert('success', 'Permissions updated successfully');
+              setShowPermissionsModal(false);
+              loadUsers(true);
+            } else {
+              showAlert('danger', result.message);
+            }
+          })
+          .withFailureHandler((error) => {
+            setSavingPermissions(false);
+            showAlert('danger', 'Failed to update permissions: ' + error.message);
+          })
+          .updateUserPermissions(editingPermissions.username, editingPermissions.permissions);
+      };
+      
+      const togglePermission = (permission) => {
+        setEditingPermissions(prev => ({
+          ...prev,
+          permissions: {
+            ...prev.permissions,
+            [permission]: !prev.permissions[permission]
+          }
+        }));
+      };
 
       return (
         <div className="list-view-container">
@@ -6100,6 +7428,230 @@
                         </>
                       ) : (
                         <>{modalMode === 'add' ? 'Add User' : 'Update User'}</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Permissions Management Modal */}
+          {showPermissionsModal && (
+            <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}} onClick={() => setShowPermissionsModal(false)}>
+              <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">
+                      <i className="bi bi-shield-lock me-2"></i>
+                      Manage Permissions - {editingPermissions.username}
+                    </h5>
+                    <button type="button" className="btn-close" onClick={() => setShowPermissionsModal(false)}></button>
+                  </div>
+                  <div className="modal-body">
+                    <p className="text-muted mb-4">
+                      <i className="bi bi-info-circle me-2"></i>
+                      Select which pages and features this user can access
+                    </p>
+                    
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="card mb-3">
+                          <div className="card-header bg-light">
+                            <strong>Core Pages</strong>
+                          </div>
+                          <div className="card-body">
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-dashboard"
+                                checked={editingPermissions.permissions.dashboard || false}
+                                onChange={() => togglePermission('dashboard')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-dashboard">
+                                <i className="bi bi-speedometer2 me-2"></i>Dashboard
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-newQuote"
+                                checked={editingPermissions.permissions.newQuote || false}
+                                onChange={() => togglePermission('newQuote')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-newQuote">
+                                <i className="bi bi-file-earmark-plus me-2"></i>New Quote
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-allQuotes"
+                                checked={editingPermissions.permissions.allQuotes || false}
+                                onChange={() => togglePermission('allQuotes')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-allQuotes">
+                                <i className="bi bi-file-earmark-text me-2"></i>All Quotes
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-invoices"
+                                checked={editingPermissions.permissions.invoices || false}
+                                onChange={() => togglePermission('invoices')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-invoices">
+                                <i className="bi bi-receipt me-2"></i>Invoices
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-customers"
+                                checked={editingPermissions.permissions.customers || false}
+                                onChange={() => togglePermission('customers')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-customers">
+                                <i className="bi bi-people me-2"></i>Customers
+                              </label>
+                            </div>
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-suppliers"
+                                checked={editingPermissions.permissions.suppliers || false}
+                                onChange={() => togglePermission('suppliers')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-suppliers">
+                                <i className="bi bi-truck me-2"></i>Suppliers
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="col-md-6">
+                        <div className="card mb-3">
+                          <div className="card-header bg-light">
+                            <strong>Inventory & Settings</strong>
+                          </div>
+                          <div className="card-body">
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-items"
+                                checked={editingPermissions.permissions.items || false}
+                                onChange={() => togglePermission('items')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-items">
+                                <i className="bi bi-box-seam me-2"></i>Items
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-inventory"
+                                checked={editingPermissions.permissions.inventory || false}
+                                onChange={() => togglePermission('inventory')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-inventory">
+                                <i className="bi bi-boxes me-2"></i>Inventory
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-categories"
+                                checked={editingPermissions.permissions.categories || false}
+                                onChange={() => togglePermission('categories')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-categories">
+                                <i className="bi bi-tags me-2"></i>Categories
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-purchaseOrders"
+                                checked={editingPermissions.permissions.purchaseOrders || false}
+                                onChange={() => togglePermission('purchaseOrders')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-purchaseOrders">
+                                <i className="bi bi-cart-plus me-2"></i>Purchase Orders
+                              </label>
+                            </div>
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-stockLocations"
+                                checked={editingPermissions.permissions.stockLocations || false}
+                                onChange={() => togglePermission('stockLocations')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-stockLocations">
+                                <i className="bi bi-geo-alt me-2"></i>Stock Locations
+                              </label>
+                            </div>
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-users"
+                                checked={editingPermissions.permissions.users || false}
+                                onChange={() => togglePermission('users')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-users">
+                                <i className="bi bi-people-fill me-2"></i>User Management
+                              </label>
+                            </div>
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="perm-serviceTickets"
+                                checked={editingPermissions.permissions.serviceTickets || false}
+                                onChange={() => togglePermission('serviceTickets')}
+                              />
+                              <label className="form-check-label" htmlFor="perm-serviceTickets">
+                                <i className="bi bi-tools me-2"></i>Service Tickets
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="alert alert-info mb-0">
+                      <i className="bi bi-lightbulb me-2"></i>
+                      <strong>Note:</strong> Admin users automatically have access to all features
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowPermissionsModal(false)} disabled={savingPermissions}>
+                      Cancel
+                    </button>
+                    <button type="button" className="btn btn-success" onClick={handleSavePermissions} disabled={savingPermissions}>
+                      {savingPermissions ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-check-circle me-2"></i>
+                          Save Permissions
+                        </>
                       )}
                     </button>
                   </div>
@@ -9126,7 +10678,7 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
 }
 
     // New Quote App Component  -- Fun New Quote
-    function QuoteApp({ currentUser, userRole, onLogout }) {
+    function QuoteApp({ currentUser, userRole, userPermissions, hasPermission, onLogout }) {
       const [items, setItems] = useState([]); // Changed from stocks
       const [customers, setCustomers] = useState([]);
       const [alert, setAlert] = useState({ show: false, type: '', message: '' });
@@ -9162,6 +10714,8 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
       const [materialCost, setMaterialCost] = useState(0); // NEW
       const [installationCost, setInstallationCost] = useState(0); // NEW
       const [salesTax, setSalesTax] = useState(0); // NEW
+      const [taxType, setTaxType] = useState('Percentage'); // "Exempt" or "Percentage"
+      const [taxRate, setTaxRate] = useState(0); // percentage value like 9.75
       const [downPayment, setDownPayment] = useState(0); // NEW
 
       useEffect(() => {
@@ -9170,6 +10724,18 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
         generateQuoteNumber();
         setDefaultValidUntil();
       }, []);
+
+      useEffect(() => {
+        const subTotal = parseFloat(materialCost) + parseFloat(installationCost);
+        if (taxType === 'Exempt') {
+          setSalesTax(0);
+        } else {
+          const calculatedTax = subTotal * (parseFloat(taxRate) / 100);
+          setSalesTax(calculatedTax);
+        }
+      }, [materialCost, installationCost, taxType, taxRate]);
+
+
 
       const loadItems = () => {
         google.script.run
@@ -9373,16 +10939,18 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
           customerCity,
           customerPhone,
           customerEmail,
+          preparedBy,
           objective,
           items: lineItems,
           materialCost: parseFloat(materialCost) || 0,
           installationCost: parseFloat(installationCost) || 0,
           salesTax: parseFloat(salesTax) || 0,
           downPayment: parseFloat(downPayment) || 0,
-          preparedBy,
-          terms: 'Payment due within 30 days',
-          status: 'Pending'
+          taxType: taxType,                          // ADD THIS
+          taxRate: parseFloat(taxRate) || 0,         // ADD THIS
+          terms: 'Payment due within 30 days'
         };
+
 
         setSavingQuote(true);
 
@@ -9426,6 +10994,8 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
         setInstallationCost(0);
         setSalesTax(0);
         setDownPayment(0);
+        setTaxType('Percentage');
+        setTaxRate(0);
       };
 
       return (
@@ -9469,101 +11039,103 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
             </div>
 
             <div className="sidebar-menu">
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('dashboard'); setMobileMenuOpen(false); }}
-                data-title="Dashboard"
-              >
-                <i className="bi bi-speedometer2"></i>
-                <span>Dashboard</span>
-              </div>
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'new-quote' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('new-quote'); setMobileMenuOpen(false); }}
-                data-title="New Quote"
-              >
-                <i className="bi bi-file-earmark-plus"></i>
-                <span>New Quote</span>
-              </div>
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'quotes' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('quotes'); setMobileMenuOpen(false); }}
-                data-title="All Quotes"
-              >
-                <i className="bi bi-file-earmark-text"></i>
-                <span>All Quotes</span>
-              </div>
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'invoices' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('invoices'); setMobileMenuOpen(false); }}
-                data-title="Invoices"
-              >
-                <i className="bi bi-receipt"></i>
-                <span>Invoices</span>
-              </div>
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'customers' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('customers'); setMobileMenuOpen(false); }}
-                data-title="Customers"
-              >
-                <i className="bi bi-people-fill"></i>
-                <span>Customers</span>
-              </div>
-
-    {/*          <div
-                className={`sidebar-menu-item ${activeMenu === 'stocks' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('stocks'); setMobileMenuOpen(false); }}
-                data-title="Stock Items"
-              >
-                <i className="bi bi-box-seam"></i>
-                <span>Stock Items</span>
-              </div>
-    */}
+              {hasPermission('dashboard') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('dashboard'); setMobileMenuOpen(false); }}
+                  data-title="Dashboard"
+                >
+                  <i className="bi bi-speedometer2"></i>
+                  <span>Dashboard</span>
+                </div>
+              )}
+              
+              {hasPermission('newQuote') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'new-quote' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('new-quote'); setMobileMenuOpen(false); }}
+                  data-title="New Quote"
+                >
+                  <i className="bi bi-file-earmark-plus"></i>
+                  <span>New Quote</span>
+                </div>
+              )}
+              
+              {hasPermission('allQuotes') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'quotes' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('quotes'); setMobileMenuOpen(false); }}
+                  data-title="All Quotes"
+                >
+                  <i className="bi bi-file-earmark-text"></i>
+                  <span>All Quotes</span>
+                </div>
+              )}
+              
+              {hasPermission('invoices') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'invoices' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('invoices'); setMobileMenuOpen(false); }}
+                  data-title="Invoices"
+                >
+                  <i className="bi bi-receipt"></i>
+                  <span>Invoices</span>
+                </div>
+              )}
+              
+              {hasPermission('customers') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'customers' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('customers'); setMobileMenuOpen(false); }}
+                  data-title="Customers"
+                >
+                  <i className="bi bi-people-fill"></i>
+                  <span>Customers</span>
+                </div>
+              )}
               
               {/* Purchase Module Menu Items */}
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'suppliers' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('suppliers'); setMobileMenuOpen(false); }}
-              >
-                <i className="bi bi-truck"></i>
-                <span>Suppliers</span>
-              </div>
+              {hasPermission('suppliers') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'suppliers' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('suppliers'); setMobileMenuOpen(false); }}
+                >
+                  <i className="bi bi-truck"></i>
+                  <span>Suppliers</span>
+                </div>
+              )}
               
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'items' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('items'); setMobileMenuOpen(false); }}
-              >
-                <i className="bi bi-box-seam"></i>
-                <span>Items</span>
-              </div>
+              {hasPermission('items') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'items' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('items'); setMobileMenuOpen(false); }}
+                >
+                  <i className="bi bi-box-seam"></i>
+                  <span>Items</span>
+                </div>
+              )}
 
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'inventory' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('inventory'); setMobileMenuOpen(false); }}
-              >
-                <i className="bi bi-boxes"></i>
-                <span>Inventory</span>
-              </div>
+              {hasPermission('inventory') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'inventory' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('inventory'); setMobileMenuOpen(false); }}
+                >
+                  <i className="bi bi-boxes"></i>
+                  <span>Inventory</span>
+                </div>
+              )}
               
+              {hasPermission('purchaseOrders') && (
+                <div
+                  className={`sidebar-menu-item ${activeMenu === 'create-purchase' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenu('create-purchase'); setMobileMenuOpen(false); }}
+                >
+                  <i className="bi bi-cart-plus"></i>
+                  <span>Create Purchase</span>
+                </div>
+              )}
               
-              <div
-                className={`sidebar-menu-item ${activeMenu === 'create-purchase' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('create-purchase'); setMobileMenuOpen(false); }}
-              >
-                <i className="bi bi-cart-plus"></i>
-                <span>Create Purchase</span>
-              </div>
-
-  {/*            <div
-                className={`sidebar-menu-item ${activeMenu === 'tech-library' ? 'active' : ''}`}
-                onClick={() => { setActiveMenu('tech-library'); setMobileMenuOpen(false); }}
-                data-title="Technical Library"
-              >
-                <i className="bi bi-book"></i>
-                <span>Technical Library</span>
-              </div>
-*/}
-              {isAdmin && (
+              {hasPermission('users') && (
                 <div
                   className={`sidebar-menu-item ${activeMenu === 'users' ? 'active' : ''}`}
                   onClick={() => { setActiveMenu('users'); setMobileMenuOpen(false); }}
@@ -9591,6 +11163,7 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                 <button type="button" className="btn-close" onClick={() => setAlert({ show: false })}></button>
               </div>
             )}
+
 
             {/* Conditional Rendering Based on Active Menu */}
             {activeMenu === 'new-quote' && (
@@ -9915,16 +11488,45 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                     <div className="row mb-2">
                       <div className="col-6 text-end"><strong>Sales Tax:</strong></div>
                       <div className="col-6">
-                        <div className="input-group input-group-sm">
-                          <span className="input-group-text">$</span>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={salesTax}
-                            onChange={(e) => setSalesTax(e.target.value)}
-                            step="0.01"
-                            min="0"
-                          />
+                        <div className="row g-2">
+                          <div className="col-6">
+                            <select
+                              className="form-select form-select-sm"
+                              value={taxType}
+                              onChange={(e) => setTaxType(e.target.value)}
+                            >
+                              <option value="Percentage">Percentage</option>
+                              <option value="Exempt">Exempt</option>
+                            </select>
+                          </div>
+                          <div className="col-6">
+                            {taxType === 'Percentage' ? (
+                              <div className="input-group input-group-sm">
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  value={taxRate}
+                                  onChange={(e) => setTaxRate(e.target.value)}
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                  placeholder="0.00"
+                                />
+                                <span className="input-group-text">%</span>
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                value="$0.00"
+                                readOnly
+                                style={{backgroundColor: '#f8f9fa', textAlign: 'right'}}
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-end" style={{fontSize: '12px', color: '#666', marginTop: '4px'}}>
+                          <strong>Tax Amount: ${parseFloat(salesTax).toFixed(2)}</strong>
                         </div>
                       </div>
                     </div>
@@ -10013,7 +11615,7 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
             {activeMenu === 'quotes' && (
               <AllQuotesView />
             )}
-
+            
             {/* Invoices View */}
             {activeMenu === 'invoices' && (
               <AllInvoicesView />
@@ -10023,12 +11625,6 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
             {activeMenu === 'customers' && (
               <CustomersView onCustomerChange={loadCustomers} />
             )}
-
-            {/*
-             Stock Items View 
-            {activeMenu === 'stocks' && (
-              <StocksView />
-            )} */}
 
             {/* Purchase Module Routes */}
             {activeMenu === 'suppliers' && (

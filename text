@@ -25,3 +25,18 @@ I told what should contain
 Item ID : unique ID Start with “IT001” incrmental way +1
 As on the top you add category 
 if you have any questiion please let me know before creating anything. and before creating code, tell me what you understood.
+
+
+
+
+
+So, I'm here for new update on inventory page, on function InventoryView, i need a new card above alert and below "Inventory" Text.
+What this card?
+Card is connect with two thing, 
+1. Category sheet -- whatever category admin entered and is on google sheet that will be show in this card.
+2. This connect to inventory table where if admin click on this category filter out table means show only whatever category admin selected, (means as a example of we have Category1, Category2, Category3 and more.)
+   if admin click Category1 then on inventory table show only Category1 rows, 
+   if admin click Category1, Category2 or any other inventory table show only that all categories rows.
+
+kind of filter out process.
+please let me know what you understood, tell me first and then create the code, and let me know which files do you want to update?

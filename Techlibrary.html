@@ -1,0 +1,889 @@
+function TechnicalLibraryView({ currentUser }) {
+    const [libraries, setLibraries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [selectedLibrary, setSelectedLibrary] = useState(null);
+    const tableRef = useRef(null);
+    const [tableInitialized, setTableInitialized] = useState(false);
+  
+    useEffect(() => {
+      loadLibraries();
+    }, []);
+  
+    const loadLibraries = () => {
+      setLoading(true);
+      setError('');
+      setTableInitialized(false);
+  
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            setLibraries(result.libraries || []);
+            setLoading(false);
+          } else {
+            setError(result ? result.message : 'Unknown error');
+            setLibraries([]);
+            setLoading(false);
+          }
+        })
+        .withFailureHandler((err) => {
+          setError('Connection error: ' + err.message);
+          setLibraries([]);
+          setLoading(false);
+        })
+        .getLibraries();
+    };
+  
+    useEffect(() => {
+      if (!loading && !tableInitialized && libraries.length >= 0 && !error) {
+        const timer = setTimeout(() => {
+          initializeDataTable();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }, [loading, tableInitialized, libraries, error]);
+  
+    const initializeDataTable = () => {
+      if (!tableRef.current) return;
+      
+      if ($.fn.DataTable.isDataTable(tableRef.current)) {
+        $(tableRef.current).DataTable().destroy();
+      }
+  
+      $(tableRef.current).empty();
+  
+      $(tableRef.current).DataTable({
+        data: libraries,
+        columns: [
+          {
+            title: 'Library Name',
+            data: 'name',
+            render: function(data, type, row) {
+              return '<a href="#" class="library-link" data-id="' + row.libraryId + '" style="color: #001f3f; font-weight: 600; text-decoration: none;">' + data + '</a>';
+            }
+          },
+          { 
+            title: 'Description', 
+            data: 'description',
+            render: function(data) {
+              return data.length > 100 ? data.substring(0, 100) + '...' : data;
+            }
+          },
+          { 
+            title: 'Equipment', 
+            data: 'equipmentCount',
+            render: function(data) {
+              return '<span class="badge bg-info">' + data + ' items</span>';
+            }
+          },
+          { 
+            title: 'Files', 
+            data: 'fileCount',
+            render: function(data) {
+              return '<span class="badge bg-secondary">' + data + ' files</span>';
+            }
+          },
+          {
+            title: 'Created',
+            data: 'createdDate',
+            render: function(data) {
+              if (!data) return 'N/A';
+              try {
+                return new Date(data).toLocaleDateString();
+              } catch(e) {
+                return data;
+              }
+            }
+          },
+          {
+            title: 'Actions',
+            data: null,
+            orderable: false,
+            render: function(data, type, row) {
+              return '<button class="btn-action btn-edit" onclick="editLibrary(\'' + row.libraryId + '\')" title="Edit"><i class="bi bi-pencil"></i></button>' +
+                     '<button class="btn-action btn-delete" onclick="deleteLibrary(\'' + row.libraryId + '\')" title="Delete"><i class="bi bi-trash"></i></button>';
+            }
+          }
+        ],
+        destroy: true,
+        responsive: true,
+        order: [[4, 'desc']],
+        pageLength: 10
+      });
+  
+      // Add click handler for library links
+      $(tableRef.current).on('click', '.library-link', function(e) {
+        e.preventDefault();
+        const libraryId = $(this).data('id');
+        openLibraryDetails(libraryId);
+      });
+  
+      setTableInitialized(true);
+    };
+  
+    const openLibraryDetails = (libraryId) => {
+      setLoading(true);
+      google.script.run
+        .withSuccessHandler((result) => {
+          setLoading(false);
+          if (result && result.success) {
+            setSelectedLibrary(result.library);
+          } else {
+            Swal.fire('Error', result ? result.message : 'Failed to load library', 'error');
+          }
+        })
+        .withFailureHandler((err) => {
+          setLoading(false);
+          Swal.fire('Error', err.message, 'error');
+        })
+        .getLibraryDetails(libraryId);
+    };
+  
+    window.editLibrary = function(libraryId) {
+      openLibraryDetails(libraryId);
+    };
+  
+    window.deleteLibrary = function(libraryId) {
+      Swal.fire({
+        title: 'Delete Library?',
+        text: 'This will delete all diagrams, equipment lists, and steps!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it!'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result && result.success) {
+                Swal.fire('Deleted!', result.message, 'success');
+                loadLibraries();
+              } else {
+                Swal.fire('Error', result ? result.message : 'Delete failed', 'error');
+              }
+            })
+            .deleteLibrary(libraryId);
+        }
+      });
+    };
+  
+    if (selectedLibrary) {
+      return <LibraryDetailView library={selectedLibrary} onBack={() => { setSelectedLibrary(null); loadLibraries(); }} currentUser={currentUser} />;
+    }
+  
+    if (loading) {
+      return (
+        <div className="container-fluid">
+          <div className="text-center p-5">
+            <div className="spinner-border text-primary"></div>
+            <p>Loading libraries...</p>
+          </div>
+        </div>
+      );
+    }
+  
+    if (error) {
+      return (
+        <div className="container-fluid">
+          <div className="alert alert-danger">
+            <h4>Error Loading Libraries</h4>
+            <p>{error}</p>
+            <button className="btn btn-primary" onClick={loadLibraries}>Try Again</button>
+          </div>
+        </div>
+      );
+    }
+  
+    return (
+      <div className="container-fluid">
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h2><i className="bi bi-book me-2"></i>Technical Library</h2>
+          <button className="btn btn-navy" onClick={() => setShowAddModal(true)}>
+            <i className="bi bi-plus-circle me-2"></i>Add Library
+          </button>
+        </div>
+  
+        {libraries.length === 0 ? (
+          <div className="alert alert-info">
+            <h5>No libraries found</h5>
+            <p>Click "Add Library" to create your first technical reference library.</p>
+          </div>
+        ) : (
+          <div className="card">
+            <div className="card-body">
+              <table ref={tableRef} className="table table-striped table-hover" style={{width: '100%'}}></table>
+            </div>
+          </div>
+        )}
+  
+        {showAddModal && <AddLibraryModal onClose={() => setShowAddModal(false)} onSave={loadLibraries} currentUser={currentUser} />}
+      </div>
+    );
+  }
+  
+  // Add Library Modal
+  function AddLibraryModal({ onClose, onSave, currentUser }) {
+    const [formData, setFormData] = useState({ name: '', description: '' });
+    const [saving, setSaving] = useState(false);
+  
+    const handleSubmit = () => {
+      if (!formData.name.trim()) {
+        Swal.fire('Error', 'Please enter a library name', 'warning');
+        return;
+      }
+  
+      setSaving(true);
+      google.script.run
+        .withSuccessHandler((result) => {
+          setSaving(false);
+          if (result && result.success) {
+            Swal.fire('Success', result.message, 'success');
+            onClose();
+            onSave();
+          } else {
+            Swal.fire('Error', result ? result.message : 'Failed to create library', 'error');
+          }
+        })
+        .withFailureHandler((err) => {
+          setSaving(false);
+          Swal.fire('Error', err.message, 'error');
+        })
+        .createLibrary({ ...formData, createdBy: currentUser });
+    };
+  
+    return (
+      <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Add New Library</h5>
+              <button type="button" className="btn-close" onClick={onClose}></button>
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">Library Name *</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  placeholder="e.g., Standard 4-Camera IP System"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Description</label>
+                <textarea 
+                  className="form-control" 
+                  rows="3"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  placeholder="Brief description of this system..."
+                ></textarea>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="button" className="btn btn-navy" onClick={handleSubmit} disabled={saving}>
+                {saving ? 'Saving...' : 'Create Library'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Library Detail View (with 4 tabs)
+  function LibraryDetailView({ library, onBack, currentUser }) {
+    const [activeTab, setActiveTab] = useState('diagrams');
+    const [refreshKey, setRefreshKey] = useState(0);
+  
+    const refresh = () => {
+      setRefreshKey(prev => prev + 1);
+      // Reload library details
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            library.files = result.library.files;
+            library.equipment = result.library.equipment;
+            library.steps = result.library.steps;
+            library.scope = result.library.scope;
+          }
+        })
+        .getLibraryDetails(library.libraryId);
+    };
+  
+    return (
+      <div className="container-fluid" key={refreshKey}>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <button className="btn btn-outline-secondary me-3" onClick={onBack}>
+              <i className="bi bi-arrow-left me-2"></i>Back
+            </button>
+            <h2 className="d-inline-block mb-0">{library.name}</h2>
+          </div>
+        </div>
+  
+        {library.description && (
+          <div className="alert alert-info mb-4">
+            {library.description}
+          </div>
+        )}
+  
+        <ul className="nav nav-tabs mb-4">
+          <li className="nav-item">
+            <a className={`nav-link ${activeTab === 'diagrams' ? 'active' : ''}`} 
+               onClick={() => setActiveTab('diagrams')} 
+               style={{cursor: 'pointer'}}>
+              <i className="bi bi-image me-2"></i>System Diagrams
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className={`nav-link ${activeTab === 'equipment' ? 'active' : ''}`} 
+               onClick={() => setActiveTab('equipment')} 
+               style={{cursor: 'pointer'}}>
+              <i className="bi bi-box-seam me-2"></i>Equipment List
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className={`nav-link ${activeTab === 'steps' ? 'active' : ''}`} 
+               onClick={() => setActiveTab('steps')} 
+               style={{cursor: 'pointer'}}>
+              <i className="bi bi-list-check me-2"></i>Installation Steps
+            </a>
+          </li>
+          <li className="nav-item">
+            <a className={`nav-link ${activeTab === 'scope' ? 'active' : ''}`} 
+               onClick={() => setActiveTab('scope')} 
+               style={{cursor: 'pointer'}}>
+              <i className="bi bi-file-text me-2"></i>Scope of Work
+            </a>
+          </li>
+        </ul>
+  
+        {activeTab === 'diagrams' && <DiagramsTab library={library} onRefresh={refresh} />}
+        {activeTab === 'equipment' && <EquipmentTab library={library} onRefresh={refresh} />}
+        {activeTab === 'steps' && <StepsTab library={library} onRefresh={refresh} />}
+        {activeTab === 'scope' && <ScopeTab library={library} onRefresh={refresh} />}
+      </div>
+    );
+  }
+  
+  // Diagrams Tab
+  function DiagramsTab({ library, onRefresh }) {
+    const [showAddModal, setShowAddModal] = useState(false);
+    const fileInputRef = useRef(null);
+  
+    const handleAddFile = () => {
+      fileInputRef.current.click();
+    };
+  
+    const handleFileSelect = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+  
+      if (file.size > 2 * 1024 * 1024) {
+        Swal.fire('Error', 'File size must be under 2MB', 'error');
+        return;
+      }
+  
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const base64 = event.target.result.split(',')[1];
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (result && result.success) {
+              Swal.fire('Success', 'File uploaded successfully', 'success');
+              onRefresh();
+            } else {
+              Swal.fire('Error', result ? result.message : 'Upload failed', 'error');
+            }
+          })
+          .addLibraryFile({
+            libraryId: library.libraryId,
+            fileName: file.name,
+            fileType: file.type,
+            base64Data: base64
+          });
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    };
+  
+    const deleteFile = (fileId) => {
+      Swal.fire({
+        title: 'Delete this file?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Delete'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result && result.success) {
+                Swal.fire('Deleted!', result.message, 'success');
+                onRefresh();
+              } else {
+                Swal.fire('Error', result ? result.message : 'Delete failed', 'error');
+              }
+            })
+            .deleteLibraryFile(fileId);
+        }
+      });
+    };
+  
+    const viewFile = (file) => {
+      const dataUrl = 'data:' + file.fileType + ';base64,' + file.base64Data;
+      window.open(dataUrl, '_blank');
+    };
+  
+    return (
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5>System Diagrams</h5>
+            <button className="btn btn-sm btn-navy" onClick={handleAddFile}>
+              <i className="bi bi-upload me-2"></i>Upload Diagram
+            </button>
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept="image/*,application/pdf" 
+              style={{display: 'none'}} 
+              onChange={handleFileSelect}
+            />
+          </div>
+  
+          {library.files && library.files.length > 0 ? (
+            <div className="row">
+              {library.files.map((file, idx) => (
+                <div key={idx} className="col-md-3 mb-3">
+                  <div className="card h-100">
+                    <div className="card-body text-center">
+                      {file.fileType.startsWith('image/') ? (
+                        <img 
+                          src={'data:' + file.fileType + ';base64,' + file.base64Data} 
+                          alt={file.fileName}
+                          style={{width: '100%', height: '150px', objectFit: 'cover', cursor: 'pointer'}}
+                          onClick={() => viewFile(file)}
+                        />
+                      ) : (
+                        <div style={{height: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0'}}>
+                          <i className="bi bi-file-pdf" style={{fontSize: '48px', color: '#d32f2f'}}></i>
+                        </div>
+                      )}
+                      <p className="mb-2 mt-2" style={{fontSize: '12px', fontWeight: 600}}>{file.fileName}</p>
+                      <button className="btn btn-sm btn-primary me-2" onClick={() => viewFile(file)}>
+                        <i className="bi bi-eye"></i> View
+                      </button>
+                      <button className="btn btn-sm btn-danger" onClick={() => deleteFile(file.fileId)}>
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-5 text-muted">
+              <i className="bi bi-image" style={{fontSize: '48px', opacity: 0.3}}></i>
+              <p className="mt-3">No diagrams uploaded yet. Click "Upload Diagram" to add system drawings.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Equipment Tab (with autocomplete from Stocks)
+  function EquipmentTab({ library, onRefresh }) {
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [stocks, setStocks] = useState([]);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [quantity, setQuantity] = useState(1);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+  
+    useEffect(() => {
+      // Load stocks for autocomplete
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            setStocks(result.stocks || []);
+          }
+        })
+        .getStocks();
+    }, []);
+  
+    const filteredStocks = stocks.filter(s => 
+      s.itemName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  
+    const selectItem = (stock) => {
+      setSelectedItem(stock);
+      setSearchTerm(stock.itemName);
+      setShowDropdown(false);
+    };
+  
+    const addEquipment = () => {
+      if (!selectedItem) {
+        Swal.fire('Error', 'Please select an item from stocks', 'warning');
+        return;
+      }
+  
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            Swal.fire('Success', 'Equipment added successfully', 'success');
+            setShowAddModal(false);
+            setSelectedItem(null);
+            setSearchTerm('');
+            setQuantity(1);
+            onRefresh();
+          } else {
+            Swal.fire('Error', result ? result.message : 'Failed to add equipment', 'error');
+          }
+        })
+        .addLibraryEquipment({
+          libraryId: library.libraryId,
+          itemName: selectedItem.itemName,
+          quantityNeeded: quantity
+        });
+    };
+  
+    const deleteEquipment = (entryId) => {
+      Swal.fire({
+        title: 'Remove this equipment?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Remove'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result && result.success) {
+                Swal.fire('Removed!', result.message, 'success');
+                onRefresh();
+              } else {
+                Swal.fire('Error', result ? result.message : 'Remove failed', 'error');
+              }
+            })
+            .deleteLibraryEquipment(entryId);
+        }
+      });
+    };
+  
+    return (
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5>Equipment List</h5>
+            <button className="btn btn-sm btn-navy" onClick={() => setShowAddModal(true)}>
+              <i className="bi bi-plus-circle me-2"></i>Add Equipment
+            </button>
+          </div>
+  
+          {library.equipment && library.equipment.length > 0 ? (
+            <div className="table-responsive">
+              <table className="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Item Name</th>
+                    <th>Qty Needed</th>
+                    <th>Purchase Price</th>
+                    <th>Sale Price</th>
+                    <th>Available in Stock</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {library.equipment.map((eq, idx) => (
+                    <tr key={idx}>
+                      <td>{eq.itemName}</td>
+                      <td>{eq.quantityNeeded}</td>
+                      <td>${parseFloat(eq.purchasePrice || 0).toFixed(2)}</td>
+                      <td>${parseFloat(eq.salePrice || 0).toFixed(2)}</td>
+                      <td>
+                        <span className={`badge ${eq.quantityAvailable >= eq.quantityNeeded ? 'bg-success' : 'bg-warning'}`}>
+                          {eq.quantityAvailable} units
+                        </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-danger" onClick={() => deleteEquipment(eq.entryId)}>
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-5 text-muted">
+              <i className="bi bi-box-seam" style={{fontSize: '48px', opacity: 0.3}}></i>
+              <p className="mt-3">No equipment added yet. Click "Add Equipment" to build your equipment list.</p>
+            </div>
+          )}
+  
+          {showAddModal && (
+            <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+              <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">Add Equipment</h5>
+                    <button type="button" className="btn-close" onClick={() => { setShowAddModal(false); setSearchTerm(''); setSelectedItem(null); }}></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label">Search Item from Stocks *</label>
+                      <input 
+                        type="text" 
+                        className="form-control"
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setShowDropdown(true); }}
+                        onFocus={() => setShowDropdown(true)}
+                        placeholder="Type to search..."
+                      />
+                      {showDropdown && searchTerm && filteredStocks.length > 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          zIndex: 1000,
+                          background: 'white',
+                          border: '1px solid #ddd',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          width: 'calc(100% - 48px)'
+                        }}>
+                          {filteredStocks.slice(0, 10).map((stock, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => selectItem(stock)}
+                              style={{
+                                padding: '10px',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #eee'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                            >
+                              <strong>{stock.itemName}</strong><br/>
+                              <small>Purchase: ${stock.purchasePrice} | Sale: ${stock.salePrice} | Stock: {stock.quantity}</small>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {selectedItem && (
+                      <div className="alert alert-info">
+                        <strong>Selected:</strong> {selectedItem.itemName}<br/>
+                        <small>Available: {selectedItem.quantity} units</small>
+                      </div>
+                    )}
+                    <div className="mb-3">
+                      <label className="form-label">Quantity Needed *</label>
+                      <input 
+                        type="number" 
+                        className="form-control"
+                        value={quantity}
+                        onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                        min="1"
+                      />
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowAddModal(false); setSearchTerm(''); setSelectedItem(null); }}>Cancel</button>
+                    <button type="button" className="btn btn-navy" onClick={addEquipment}>Add Equipment</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Installation Steps Tab
+  function StepsTab({ library, onRefresh }) {
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [stepText, setStepText] = useState('');
+  
+    const addStep = () => {
+      if (!stepText.trim()) {
+        Swal.fire('Error', 'Please enter step text', 'warning');
+        return;
+      }
+  
+      const stepNumber = (library.steps ? library.steps.length : 0) + 1;
+  
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            Swal.fire('Success', 'Step added successfully', 'success');
+            setShowAddModal(false);
+            setStepText('');
+            onRefresh();
+          } else {
+            Swal.fire('Error', result ? result.message : 'Failed to add step', 'error');
+          }
+        })
+        .addLibraryStep({
+          libraryId: library.libraryId,
+          stepNumber: stepNumber,
+          stepText: stepText
+        });
+    };
+  
+    const deleteStep = (stepId) => {
+      Swal.fire({
+        title: 'Delete this step?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Delete'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result && result.success) {
+                Swal.fire('Deleted!', result.message, 'success');
+                onRefresh();
+              } else {
+                Swal.fire('Error', result ? result.message : 'Delete failed', 'error');
+              }
+            })
+            .deleteLibraryStep(stepId);
+        }
+      });
+    };
+  
+    return (
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5>Installation Steps</h5>
+            <button className="btn btn-sm btn-navy" onClick={() => setShowAddModal(true)}>
+              <i className="bi bi-plus-circle me-2"></i>Add Step
+            </button>
+          </div>
+  
+          {library.steps && library.steps.length > 0 ? (
+            <div>
+              {library.steps.map((step, idx) => (
+                <div key={idx} className="d-flex align-items-start mb-3 p-3" style={{background: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #001f3f'}}>
+                  <input type="checkbox" style={{marginRight: '15px', marginTop: '3px', width: '18px', height: '18px'}} />
+                  <div style={{flex: 1}}>
+                    <strong>Step {step.stepNumber}:</strong> {step.stepText}
+                  </div>
+                  <button className="btn btn-sm btn-danger" onClick={() => deleteStep(step.stepId)}>
+                    <i className="bi bi-trash"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-5 text-muted">
+              <i className="bi bi-list-check" style={{fontSize: '48px', opacity: 0.3}}></i>
+              <p className="mt-3">No installation steps added yet. Click "Add Step" to create your checklist.</p>
+            </div>
+          )}
+  
+          {showAddModal && (
+            <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
+              <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">Add Installation Step</h5>
+                    <button type="button" className="btn-close" onClick={() => { setShowAddModal(false); setStepText(''); }}></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label">Step Text *</label>
+                      <textarea 
+                        className="form-control" 
+                        rows="3"
+                        value={stepText}
+                        onChange={(e) => setStepText(e.target.value)}
+                        placeholder="e.g., Mount cameras at designated locations"
+                      ></textarea>
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowAddModal(false); setStepText(''); }}>Cancel</button>
+                    <button type="button" className="btn btn-navy" onClick={addStep}>Add Step</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Scope of Work Tab
+  function ScopeTab({ library, onRefresh }) {
+    const [editing, setEditing] = useState(false);
+    const [scopeText, setScopeText] = useState(library.scope || '');
+  
+    const saveScope = () => {
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (result && result.success) {
+            Swal.fire('Success', 'Scope of work saved successfully', 'success');
+            setEditing(false);
+            onRefresh();
+          } else {
+            Swal.fire('Error', result ? result.message : 'Failed to save scope', 'error');
+          }
+        })
+        .saveLibraryScope({
+          libraryId: library.libraryId,
+          scopeText: scopeText
+        });
+    };
+  
+    return (
+      <div className="card">
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5>Scope of Work</h5>
+            {!editing ? (
+              <button className="btn btn-sm btn-navy" onClick={() => setEditing(true)}>
+                <i className="bi bi-pencil me-2"></i>Edit
+              </button>
+            ) : (
+              <div>
+                <button className="btn btn-sm btn-secondary me-2" onClick={() => { setEditing(false); setScopeText(library.scope || ''); }}>Cancel</button>
+                <button className="btn btn-sm btn-navy" onClick={saveScope}>
+                  <i className="bi bi-check-lg me-2"></i>Save
+                </button>
+              </div>
+            )}
+          </div>
+  
+          {editing ? (
+            <textarea 
+              className="form-control" 
+              rows="10"
+              value={scopeText}
+              onChange={(e) => setScopeText(e.target.value)}
+              placeholder="Enter detailed scope of work for this system..."
+            ></textarea>
+          ) : (
+            <div style={{whiteSpace: 'pre-wrap', lineHeight: 1.8}}>
+              {library.scope || <div className="text-center py-5 text-muted">
+                <i className="bi bi-file-text" style={{fontSize: '48px', opacity: 0.3}}></i>
+                <p className="mt-3">No scope of work defined yet. Click "Edit" to add details.</p>
+              </div>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }

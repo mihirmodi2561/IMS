@@ -8,7 +8,6 @@
 // Global variable to cache spreadsheet ID
 var SPREADSHEET_ID = null;
 
-
 // Serve the web app
 function doGet() {
   // Cache the ID here — this is the only place getActiveSpreadsheet() works reliably
@@ -16,7 +15,6 @@ function doGet() {
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
     .setTitle('Inventory Management System')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 

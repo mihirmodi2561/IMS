@@ -30,7 +30,7 @@ function getNextQuoteNumber() {
   }
 }
 
-// Save quote
+// Save quote - UPDATED WITH TAX SYSTEM
 function saveQuote(quoteData) {
   try {
     var ss = getSpreadsheet();
@@ -46,13 +46,25 @@ function saveQuote(quoteData) {
     // Convert items array to JSON
     var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems);
 
+    // Get tax values
+    var taxType = quoteData.taxType || 'Percentage';
+    var taxRate = parseFloat(quoteData.taxRate) || 0;
+    
     // Calculate totals
     var materialCost = parseFloat(quoteData.materialCost) || 0;
     var installationCost = parseFloat(quoteData.installationCost) || 0;
-    var salesTax = parseFloat(quoteData.salesTax) || 0;
     var downPayment = parseFloat(quoteData.downPayment) || 0;
     
     var subTotal = materialCost + installationCost;
+    
+    // Calculate sales tax based on type
+    var salesTax = 0;
+    if (taxType === 'Exempt') {
+      salesTax = 0;
+    } else {
+      salesTax = subTotal * (taxRate / 100);
+    }
+    
     var grandTotal = subTotal + salesTax;
     var finalPayment = grandTotal - downPayment;
 
@@ -72,14 +84,16 @@ function saveQuote(quoteData) {
       materialCost,                          // M: Material Cost
       installationCost,                      // N: Installation Cost
       subTotal,                              // O: Sub Total
-      salesTax,                              // P: Sales Tax
+      salesTax,                              // P: Sales Tax (calculated amount)
       grandTotal,                            // Q: Grand Total
       downPayment,                           // R: Down Payment
       finalPayment,                          // S: Final Payment
       quoteData.preparedBy,                  // T: Prepared By
       quoteData.terms || 'Payment due within 30 days', // U: Terms
       createdAt,                             // V: Created At
-      quoteData.status || 'Pending'          // W: Status
+      quoteData.status || 'Pending',         // W: Status
+      taxType,                               // X: Tax Type (NEW)
+      taxRate                                // Y: Tax Rate (NEW)
     ];
 
     quotesSheet.appendRow(rowData);
@@ -94,9 +108,12 @@ function saveQuote(quoteData) {
   }
 }
 
-// Update existing quote
+// Update existing quote - UPDATED WITH TAX SYSTEM
 function updateQuote(quoteData) {
   try {
+    Logger.log('=== UPDATE QUOTE START ===');
+    Logger.log('Quote Number: ' + quoteData.quoteNumber);
+    
     var ss = getSpreadsheet();
     var quotesSheet = ss.getSheetByName('Quotes');
 
@@ -119,47 +136,73 @@ function updateQuote(quoteData) {
       return {success: false, message: 'Quote not found'};
     }
 
+    Logger.log('Found quote at row: ' + rowIndex);
+    
+    // Get original data to preserve customer info
+    var originalRow = data[rowIndex - 1];
+    
     // Convert items array to JSON
-    var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems);
+    var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems || []);
+    Logger.log('Items JSON: ' + itemsJSON);
 
+    // Get tax values
+    var taxType = quoteData.taxType || 'Percentage';
+    var taxRate = parseFloat(quoteData.taxRate) || 0;
+    
     // Calculate totals
     var materialCost = parseFloat(quoteData.materialCost) || 0;
     var installationCost = parseFloat(quoteData.installationCost) || 0;
-    var salesTax = parseFloat(quoteData.salesTax) || 0;
     var downPayment = parseFloat(quoteData.downPayment) || 0;
     
     var subTotal = materialCost + installationCost;
+    
+    // Calculate sales tax based on type
+    var salesTax = 0;
+    if (taxType === 'Exempt') {
+      salesTax = 0;
+    } else {
+      salesTax = subTotal * (taxRate / 100);
+    }
+    
     var grandTotal = subTotal + salesTax;
     var finalPayment = grandTotal - downPayment;
+    
+    Logger.log('Calculated: SubTotal=' + subTotal + ', TaxType=' + taxType + ', TaxRate=' + taxRate + ', SalesTax=' + salesTax + ', GrandTotal=' + grandTotal);
 
-    // Update the row (keep quote number, created at, and status)
+    // Update the row - PRESERVE CUSTOMER DATA from original
     var rowData = [
       quoteData.quoteNumber,                 // A: Quote Number
-      quoteData.date,                        // B: Date
-      quoteData.validUntil,                  // C: Valid Until
-      quoteData.customerId || '',            // D: Customer ID
-      quoteData.customerName,                // E: Customer Name
-      quoteData.customerCompany || '',       // F: Company
-      quoteData.customerAddress || '',       // G: Address
-      quoteData.customerCity || '',          // H: City
-      quoteData.customerPhone || '',         // I: Phone
-      quoteData.customerEmail || '',         // J: Email
+      quoteData.date || originalRow[1],      // B: Date
+      quoteData.validUntil || originalRow[2], // C: Valid Until
+      // CUSTOMER DATA - Use original values (READ-ONLY)
+      originalRow[3],                        // D: Customer ID (from original)
+      originalRow[4],                        // E: Customer Name (from original)
+      originalRow[5],                        // F: Company (from original)
+      originalRow[6],                        // G: Address (from original)
+      originalRow[7],                        // H: City (from original)
+      originalRow[8],                        // I: Phone (from original)
+      originalRow[9],                        // J: Email (from original)
+      // EDITABLE FIELDS
       quoteData.objective || '',             // K: Objective
       itemsJSON,                             // L: Items JSON
       materialCost,                          // M: Material Cost
       installationCost,                      // N: Installation Cost
       subTotal,                              // O: Sub Total
-      salesTax,                              // P: Sales Tax
+      salesTax,                              // P: Sales Tax (calculated)
       grandTotal,                            // Q: Grand Total
       downPayment,                           // R: Down Payment
       finalPayment,                          // S: Final Payment
-      quoteData.preparedBy,                  // T: Prepared By
+      quoteData.preparedBy || originalRow[19], // T: Prepared By
       quoteData.terms || 'Payment due within 30 days', // U: Terms
-      data[rowIndex - 1][21],                // V: Keep original Created At
-      data[rowIndex - 1][22]                 // W: Keep original Status
+      originalRow[21],                       // V: Keep original Created At
+      originalRow[22],                       // W: Keep original Status
+      taxType,                               // X: Tax Type (NEW)
+      taxRate                                // Y: Tax Rate (NEW)
     ];
 
     quotesSheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
+    
+    Logger.log('=== UPDATE QUOTE SUCCESS ===');
 
     return {
       success: true,
@@ -167,11 +210,13 @@ function updateQuote(quoteData) {
       quoteNumber: quoteData.quoteNumber
     };
   } catch (error) {
+    Logger.log('=== UPDATE QUOTE ERROR ===');
+    Logger.log('Error: ' + error.toString());
     return {success: false, message: 'Error: ' + error.toString()};
   }
 }
 
-// Get all quotes
+// Get all quotes - UPDATED TO INCLUDE TAX FIELDS
 function getQuotes() {
   try {
     var ss = getSpreadsheet();
@@ -191,24 +236,24 @@ function getQuotes() {
         var items = [];
         try {
           if (row[11]) {
-            items = JSON.parse(row[11]);
+            items = JSON.parse(String(row[11]));
           }
         } catch (e) {
           items = [];
         }
 
         quotes.push({
-          quoteNumber: row[0],
-          date: row[1],
-          validUntil: row[2],
-          customerId: row[3],
-          customerName: row[4],
-          customerCompany: row[5],
-          customerAddress: row[6],
-          customerCity: row[7],
-          customerPhone: row[8],
-          customerEmail: row[9],
-          objective: row[10] || '',
+          quoteNumber: String(row[0]),
+          date: row[1] ? String(row[1]) : '',
+          validUntil: row[2] ? String(row[2]) : '',
+          customerId: String(row[3] || ''),
+          customerName: String(row[4] || ''),
+          customerCompany: String(row[5] || ''),
+          customerAddress: String(row[6] || ''),
+          customerCity: String(row[7] || ''),
+          customerPhone: String(row[8] || ''),
+          customerEmail: String(row[9] || ''),
+          objective: String(row[10] || ''),
           items: items,
           materialCost: parseFloat(row[12]) || 0,
           installationCost: parseFloat(row[13]) || 0,
@@ -217,10 +262,12 @@ function getQuotes() {
           grandTotal: parseFloat(row[16]) || 0,
           downPayment: parseFloat(row[17]) || 0,
           finalPayment: parseFloat(row[18]) || 0,
-          preparedBy: row[19],
-          terms: row[20],
-          createdAt: row[21],
-          status: row[22]
+          preparedBy: String(row[19] || ''),
+          terms: String(row[20] || ''),
+          createdAt: row[21] ? String(row[21]) : '',
+          status: String(row[22] || 'Pending'),
+          taxType: String(row[23] || 'Percentage'),  // NEW - default to Percentage
+          taxRate: parseFloat(row[24]) || 0          // NEW - default to 0
         });
       }
     }
@@ -371,7 +418,7 @@ function getSpreadsheet() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
-// Setup Quotes sheet with new structure
+// Setup Quotes sheet - UPDATED WITH NEW COLUMNS
 function setupQuotesSheet() {
   try {
     var ss = getSpreadsheet();
@@ -384,13 +431,14 @@ function setupQuotesSheet() {
     // Clear existing content
     sheet.clear();
     
-    // Set headers
+    // Set headers INCLUDING NEW TAX COLUMNS
     var headers = [
       'Quote Number', 'Date', 'Valid Until', 'Customer ID', 'Customer Name',
       'Company', 'Address', 'City', 'Phone', 'Email', 'Objective',
       'Items JSON', 'Material Cost', 'Installation Cost', 'Sub Total',
       'Sales Tax', 'Grand Total', 'Down Payment', 'Final Payment',
-      'Prepared By', 'Terms', 'Created At', 'Status'
+      'Prepared By', 'Terms', 'Created At', 'Status',
+      'Tax Type', 'Tax Rate'  // NEW COLUMNS
     ];
     
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);

@@ -567,14 +567,12 @@ function generateInvoicePDF(invoiceNumber) {
     return {success: false, message: 'Error generating PDF: ' + error.toString()};
   }
 }
-// ========================================
-// CREATE MANUAL INVOICE (Direct Sale - No Quote)
-// ========================================
 
-/**
- * Create a manual invoice directly without a quote
- * Used for direct sales/walk-in customers
- */
+// ============================================
+// UPDATED INVOICES.GS - WITH TAX SYSTEM
+// Replace createManualInvoice function (lines 578-656)
+// ============================================
+
 function createManualInvoice(invoiceData) {
   try {
     Logger.log('📝 Creating manual invoice');
@@ -602,7 +600,31 @@ function createManualInvoice(invoiceData) {
       return {success: false, message: 'Invalid line items format: ' + e.toString()};
     }
     
-    // Invoices sheet structure (24 columns):
+    // Get tax values
+    var taxType = invoiceData.taxType || 'Percentage';
+    var taxRate = parseFloat(invoiceData.taxRate) || 0;
+    
+    // Calculate totals
+    var materialCost = parseFloat(invoiceData.materialCost) || 0;
+    var installationCost = parseFloat(invoiceData.installationCost) || 0;
+    var downPayment = parseFloat(invoiceData.downPayment) || 0;
+    
+    var subTotal = materialCost + installationCost;
+    
+    // Calculate sales tax based on type
+    var salesTax = 0;
+    if (taxType === 'Exempt') {
+      salesTax = 0;
+    } else {
+      salesTax = subTotal * (taxRate / 100);
+    }
+    
+    var grandTotal = subTotal + salesTax;
+    var finalPayment = grandTotal - downPayment;
+    
+    Logger.log('Tax Calculation: Type=' + taxType + ', Rate=' + taxRate + '%, Tax=$' + salesTax);
+    
+    // Invoices sheet structure (NOW 26 COLUMNS with Tax Type & Rate):
     var rowData = [
       invoiceNumber,                              // A: Invoice Number
       createdAt,                                  // B: Created At
@@ -615,19 +637,21 @@ function createManualInvoice(invoiceData) {
       String(invoiceData.customerPhone || ''),    // I: Phone
       String(invoiceData.customerEmail || ''),    // J: Email
       JSON.stringify(items),                      // K: Items JSON
-      parseFloat(invoiceData.materialCost) || 0,  // L: Material Cost
-      parseFloat(invoiceData.installationCost) || 0, // M: Installation Cost
-      parseFloat(invoiceData.subTotal) || 0,      // N: Sub Total
-      parseFloat(invoiceData.salesTax) || 0,      // O: Sales Tax
-      parseFloat(invoiceData.grandTotal) || 0,    // P: Grand Total
-      parseFloat(invoiceData.downPayment) || 0,   // Q: Down Payment
-      parseFloat(invoiceData.finalPayment) || 0,  // R: Final Payment
+      materialCost,                               // L: Material Cost
+      installationCost,                           // M: Installation Cost
+      subTotal,                                   // N: Sub Total
+      salesTax,                                   // O: Sales Tax (calculated)
+      grandTotal,                                 // P: Grand Total
+      downPayment,                                // Q: Down Payment
+      finalPayment,                               // R: Final Payment
       String(invoiceData.preparedBy || 'admin'),  // S: Prepared By
       String(invoiceData.objective || ''),        // T: Objective
       String(invoiceData.terms || 'Payment due within 30 days'), // U: Terms
       createdAt,                                  // V: Created timestamp
       'Unpaid',                                   // W: Status
-      'MANUAL'                                    // X: Quote Number (MANUAL for manual invoices)
+      'MANUAL',                                   // X: Quote Number (MANUAL for manual invoices)
+      taxType,                                    // Y: Tax Type (NEW)
+      taxRate                                     // Z: Tax Rate (NEW)
     ];
     
     invoicesSheet.appendRow(rowData);
@@ -654,6 +678,7 @@ function createManualInvoice(invoiceData) {
     return {success: false, message: 'Error: ' + error.toString()};
   }
 }
+
 // ========================================
 // UPDATE INVOICE (Edit existing invoice)
 // ========================================

@@ -177,6 +177,8 @@ function createPDFHTML(data, type) {
   html += '<li>Adams Telecom Systems makes the recommendations as described in this proposal.</li>';
   html += '<li>Adams Telecom Systems is not liable for any use or information that is not described and/or disclosed in this proposal.</li>';
   html += '</ul>';
+  html += '<p></p>' 
+  html += '<h4 style="color: #001f3f; margin-bottom: 10px;">Customer Acceptance <span style="font-size:10px;">(Sign below):</span></h4>';
   html += '</div>';
   
   // RIGHT COLUMN: Calculations
@@ -184,6 +186,7 @@ function createPDFHTML(data, type) {
   html += '<div class="total-row"><span>Material Cost</span><span>$' + parseFloat(data.materialCost || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row"><span>Installation & Training</span><span>$' + parseFloat(data.installationCost || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row section-divider"><span><strong>Sub Total</strong></span><span><strong>$' + parseFloat(data.subTotal || 0).toFixed(2) + '</strong></span></div>';
+  // html += '<div class="total-row"><span>Sales Tax</span><span>' + (data.salesTax != null ? '$' + parseFloat(data.salesTax).toFixed(2) : 'Exempt') + '</span></div>';
   html += '<div class="total-row"><span>Sales Tax</span><span>$' + parseFloat(data.salesTax || 0).toFixed(2) + '</span></div>';
   html += '<div class="total-row grand-total"><span>GRAND TOTAL</span><span>$' + parseFloat(data.grandTotal || 0).toFixed(2) + '</span></div>';
   
