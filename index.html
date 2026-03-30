@@ -1249,6 +1249,80 @@
       margin-top: 5px;
       font-size: 12px;
     }
+    
+    /* Rich Text Editor Styles */
+    .rich-text-editor {
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      background: white;
+    }
+    
+    .rich-text-toolbar {
+      background: #f8f9fa;
+      border-bottom: 1px solid #ced4da;
+      padding: 8px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    
+    .rich-text-toolbar button {
+      background: white;
+      border: 1px solid #ced4da;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .rich-text-toolbar button:hover {
+      background: #e9ecef;
+      border-color: var(--navy-blue);
+    }
+    
+    .rich-text-toolbar button.active {
+      background: var(--navy-blue);
+      color: white;
+      border-color: var(--navy-blue);
+    }
+    
+    .rich-text-toolbar select {
+      border: 1px solid #ced4da;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    }
+    
+    .rich-text-content {
+      min-height: 200px;
+      padding: 15px;
+      outline: none;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    
+    .rich-text-content:focus {
+      border-color: var(--navy-blue);
+      box-shadow: 0 0 0 0.2rem rgba(0, 31, 63, 0.15);
+    }
+    
+    .rich-text-content h1 { font-size: 24px; font-weight: bold; margin: 10px 0; }
+    .rich-text-content h2 { font-size: 20px; font-weight: bold; margin: 10px 0; }
+    .rich-text-content h3 { font-size: 16px; font-weight: bold; margin: 10px 0; }
+    .rich-text-content p { margin: 8px 0; line-height: 1.6; }
+    .rich-text-content ul, .rich-text-content ol { margin: 8px 0; padding-left: 30px; }
+    .rich-text-content li { margin: 4px 0; }
+    .rich-text-content strong { font-weight: bold; }
+    .rich-text-content em { font-style: italic; }
+    .rich-text-content u { text-decoration: underline; }
+    .rich-text-content mark { background-color: yellow; padding: 2px 4px; }
+
 
     /* Dashboard Styles */
     .dashboard-container {
@@ -1387,6 +1461,138 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
+
+    // ============================================
+    // RICH TEXT EDITOR COMPONENT
+    // ============================================
+    
+    function RichTextEditor({ value, onChange, placeholder }) {
+      const editorRef = useRef(null);
+      
+      useEffect(() => {
+        if (editorRef.current && value !== editorRef.current.innerHTML) {
+          editorRef.current.innerHTML = value || '';
+        }
+      }, [value]);
+      
+      const handleInput = () => {
+        if (editorRef.current) {
+          onChange(editorRef.current.innerHTML);
+        }
+      };
+      
+      const execCommand = (command, value = null) => {
+        document.execCommand(command, false, value);
+        editorRef.current.focus();
+      };
+      
+      const setFontSize = (e) => {
+        const size = e.target.value;
+        if (size) {
+          execCommand('formatBlock', size);
+        }
+      };
+      
+      return (
+        <div className="rich-text-editor">
+          <div className="rich-text-toolbar">
+            {/* Font Size */}
+            <select onChange={setFontSize} defaultValue="">
+              <option value="">Normal</option>
+              <option value="h1">Heading 1</option>
+              <option value="h2">Heading 2</option>
+              <option value="h3">Heading 3</option>
+            </select>
+            
+            {/* Text Formatting */}
+            <button 
+              type="button"
+              onClick={() => execCommand('bold')}
+              title="Bold (Ctrl+B)"
+            >
+              <i className="bi bi-type-bold"></i> <strong>B</strong>
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => execCommand('italic')}
+              title="Italic (Ctrl+I)"
+            >
+              <i className="bi bi-type-italic"></i> <em>I</em>
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => execCommand('underline')}
+              title="Underline (Ctrl+U)"
+            >
+              <i className="bi bi-type-underline"></i> <u>U</u>
+            </button>
+            
+            {/* Highlight */}
+            <button 
+              type="button"
+              onClick={() => execCommand('backColor', 'yellow')}
+              title="Highlight"
+            >
+              <i className="bi bi-highlighter"></i> Highlight
+            </button>
+            
+            {/* Lists */}
+            <button 
+              type="button"
+              onClick={() => execCommand('insertUnorderedList')}
+              title="Bullet List"
+            >
+              <i className="bi bi-list-ul"></i>
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => execCommand('insertOrderedList')}
+              title="Numbered List"
+            >
+              <i className="bi bi-list-ol"></i>
+            </button>
+            
+            {/* Alignment */}
+            <button 
+              type="button"
+              onClick={() => execCommand('justifyLeft')}
+              title="Align Left"
+            >
+              <i className="bi bi-text-left"></i>
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => execCommand('justifyCenter')}
+              title="Align Center"
+            >
+              <i className="bi bi-text-center"></i>
+            </button>
+            
+            {/* Clear Formatting */}
+            <button 
+              type="button"
+              onClick={() => execCommand('removeFormat')}
+              title="Clear Formatting"
+            >
+              <i className="bi bi-eraser"></i> Clear
+            </button>
+          </div>
+          
+          <div 
+            ref={editorRef}
+            className="rich-text-content"
+            contentEditable={true}
+            onInput={handleInput}
+            data-placeholder={placeholder || 'Enter text...'}
+            suppressContentEditableWarning={true}
+          />
+        </div>
+      );
+    }
 
     // Main App Component
     function App() {
@@ -3054,7 +3260,7 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                   <>
                     <hr/>
                     <h6><strong>Objective</strong></h6>
-                    <p>{viewingQuote.objective}</p>
+                    <div dangerouslySetInnerHTML={{__html: viewingQuote.objective}} style={{lineHeight: '1.6'}}></div>
                   </>
                 )}
 
@@ -3081,6 +3287,31 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                               <td>{item.itemName}</td>
                               <td>{item.category}</td>
                               <td>{item.qty}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+                
+                {viewingQuote.services && viewingQuote.services.length > 0 && (
+                  <>
+                    <hr/>
+                    <h6><strong>Services</strong></h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark">
+                          <tr>
+                            <th>Service Code</th>
+                            <th>Service Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewingQuote.services.map((service, idx) => (
+                            <tr key={idx}>
+                              <td><strong>{service.serviceCode}</strong></td>
+                              <td>{service.serviceName}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -3188,16 +3419,25 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                   </div>
                 </div>
 
+                {viewingInvoice.objective && (
+                  <>
+                    <hr/>
+                    <h6><strong>Objective</strong></h6>
+                    <div dangerouslySetInnerHTML={{__html: viewingInvoice.objective}} style={{lineHeight: '1.6'}}></div>
+                  </>
+                )}
+
                 {viewingInvoice.items && viewingInvoice.items.length > 0 && (
                   <>
                     <hr/>
-                    <h6><strong>Items</strong></h6>
+                    <h6><strong>Equipment</strong></h6>
                     <div className="table-responsive">
                       <table className="table table-sm table-bordered">
                         <thead className="table-dark">
                           <tr>
                             <th>Item</th>
-                            <th>Description</th>
+                            <th>Model Number</th>
+                            <th>Item Name</th>
                             <th>QTY</th>
                           </tr>
                         </thead>
@@ -3205,6 +3445,7 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                           {viewingInvoice.items.map((item, idx) => (
                             <tr key={idx}>
                               <td>{idx + 1}</td>
+                              <td>{item.modelNumber || '-'}</td>
                               <td>{item.itemName || item.description}</td>
                               <td>{item.qty}</td>
                             </tr>
@@ -3214,7 +3455,84 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                     </div>
                   </>
                 )}
+                
+                {viewingInvoice.services && viewingInvoice.services.length > 0 && (
+                  <>
+                    <hr/>
+                    <h6><strong>Services</strong></h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-dark">
+                          <tr>
+                            <th>Service Code</th>
+                            <th>Service Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewingInvoice.services.map((service, idx) => (
+                            <tr key={idx}>
+                              <td><strong>{service.serviceCode}</strong></td>
+                              <td>{service.serviceName}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
 
+                <hr/>
+                <h6><strong>Cost Breakdown</strong></h6>
+                <table className="table table-sm">
+                  <tbody>
+                    <tr>
+                      <td>Material Cost:</td>
+                      <td className="text-end">${viewingInvoice.materialCost.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td>Installation Cost:</td>
+                      <td className="text-end">${viewingInvoice.installationCost.toFixed(2)}</td>
+                    </tr>
+                    <tr style={{borderTop: '1px solid #dee2e6'}}>
+                      <td><strong>Sub Total:</strong></td>
+                      <td className="text-end"><strong>${viewingInvoice.subTotal.toFixed(2)}</strong></td>
+                    </tr>
+                    <tr>
+                      <td>Sales Tax:</td>
+                      <td className="text-end">${viewingInvoice.salesTax.toFixed(2)}</td>
+                    </tr>
+                    
+                    {/* Additional Charges - NEW */}
+                    {(viewingInvoice.ratePrice > 0 || viewingInvoice.drivingHoursPrice > 0 || viewingInvoice.onSiteHoursPrice > 0) && (
+                      <>
+                        <tr style={{borderTop: '1px solid #dee2e6'}}>
+                          <td colSpan="2" style={{paddingTop: '10px', paddingBottom: '5px'}}>
+                            <strong style={{color: '#001f3f'}}>Additional Charges:</strong>
+                          </td>
+                        </tr>
+                        {viewingInvoice.ratePrice > 0 && (
+                          <tr>
+                            <td>{viewingInvoice.rateType || 'Rate'}:</td>
+                            <td className="text-end">${viewingInvoice.ratePrice.toFixed(2)}</td>
+                          </tr>
+                        )}
+                        {viewingInvoice.drivingHoursPrice > 0 && (
+                          <tr>
+                            <td>Driving Hours:</td>
+                            <td className="text-end">${viewingInvoice.drivingHoursPrice.toFixed(2)}</td>
+                          </tr>
+                        )}
+                        {viewingInvoice.onSiteHoursPrice > 0 && (
+                          <tr>
+                            <td>On-Site Hours:</td>
+                            <td className="text-end">${viewingInvoice.onSiteHoursPrice.toFixed(2)}</td>
+                          </tr>
+                        )}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+                
                 <hr/>
                 <h6><strong>Totals</strong></h6>
                 <table className="table table-sm">
@@ -4316,6 +4634,19 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
       const [editDownPayment, setEditDownPayment] = useState(0);
       const [editTaxType, setEditTaxType] = useState('Percentage');
       const [editTaxRate, setEditTaxRate] = useState(0);
+      const [editServices, setEditServices] = useState([]); // NEW - Services for edit mode
+      const [showEditServiceModal, setShowEditServiceModal] = useState(false); // NEW - Service modal for edit
+      const [showEditItemsBlock, setShowEditItemsBlock] = useState(false); // NEW - Show/hide items in edit mode
+      
+      // NEW: Additional charges modal state
+      const [showAdditionalChargesModal, setShowAdditionalChargesModal] = useState(false);
+      const [pendingQuoteNumber, setPendingQuoteNumber] = useState(null);
+      const [additionalCharges, setAdditionalCharges] = useState({
+        rateType: 'Weekend',
+        ratePrice: 0,
+        drivingHoursPrice: 0,
+        onSiteHoursPrice: 0
+      });
 
       const tableRef = useRef(null);
       const dataTableRef = useRef(null);
@@ -4373,20 +4704,9 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
             if (result && result.success) {
               setAllQuotes(result.quotes);
               setQuotes(result.quotes);   
-              if (refresh) {
-                // Destroy and recreate table
-                if (dataTableRef.current) {
-                  try {
-                    dataTableRef.current.destroy();
-                    dataTableRef.current = null;
-                  } catch(e) {}
-                }
-                setLoading(false);
-                setTimeout(() => initDataTable(result.quotes), 100);
-              } else {
-                setLoading(false);
-                setTimeout(() => initDataTable(result.quotes), 100);
-              }
+              setLoading(false);
+              // Use setTimeout to ensure DOM is ready
+              setTimeout(() => initDataTable(result.quotes), 150);
             } else {
               showAlert('danger', result.message);
               setLoading(false);
@@ -4432,8 +4752,19 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
       }, [dateFrom, dateTo, statusFilter, customerFilter, allQuotes]);
 
       const initDataTable = (data) => {
+        // Destroy existing table if present
         if (dataTableRef.current) {
-          dataTableRef.current.destroy();
+          try {
+            dataTableRef.current.destroy();
+            dataTableRef.current = null;
+          } catch(e) {}
+        }
+
+        // Safety check: ensure table element exists before initializing
+        if (!tableRef.current) {
+          console.warn('Table element not ready, retrying...');
+          setTimeout(() => initDataTable(data), 100);
+          return;
         }
 
         dataTableRef.current = $(tableRef.current).DataTable({
@@ -4542,8 +4873,41 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
         setEditInstallationCost(parseFloat(quote.installationCost) || 0);
         setEditSalesTax(parseFloat(quote.salesTax) || 0);
         setEditDownPayment(parseFloat(quote.downPayment) || 0);
-        setEditTaxType(quote.taxType || 'Percentage');        // ADD THIS
-        setEditTaxRate(parseFloat(quote.taxRate) || 0);       // ADD THIS
+        setEditTaxType(quote.taxType || 'Percentage');
+        setEditTaxRate(parseFloat(quote.taxRate) || 0);
+        setEditServices(quote.services || []); // NEW - Load services
+        setShowEditItemsBlock(quote.items && quote.items.length > 0); // NEW - Show items block if items exist
+      };
+      
+      // NEW: Function to create invoice with additional charges
+      const handleCreateInvoiceWithCharges = () => {
+        // Validation
+        if (additionalCharges.ratePrice < 0 || additionalCharges.drivingHoursPrice < 0 || additionalCharges.onSiteHoursPrice < 0) {
+          showAlert('warning', 'Prices cannot be negative');
+          return;
+        }
+        
+        setShowAdditionalChargesModal(false);
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (result && result.success) {
+              Swal.fire({
+                title: 'Success!',
+                text: `Invoice #${result.invoiceNumber} created successfully`,
+                icon: 'success',
+                confirmButtonColor: '#001f3f'
+              });
+              loadQuotes(true);
+              setPendingQuoteNumber(null);
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            Swal.fire('Error!', 'Failed to create invoice: ' + error.message, 'error');
+          })
+          .createInvoiceFromQuote(String(pendingQuoteNumber), additionalCharges);
       };
 
       useEffect(() => {
@@ -4670,24 +5034,15 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
             confirmButtonText: 'Yes, create invoice!'
           }).then((result) => {
             if (result.isConfirmed) {
-              google.script.run
-                .withSuccessHandler((result) => {
-                  if (result && result.success) {
-                    Swal.fire({
-                      title: 'Success!',
-                      text: `Invoice #${result.invoiceNumber} created successfully`,
-                      icon: 'success',
-                      confirmButtonColor: '#001f3f'
-                    });
-                    loadQuotes(true);
-                  } else {
-                    Swal.fire('Error!', result.message, 'error');
-                  }
-                })
-                .withFailureHandler((error) => {
-                  Swal.fire('Error!', 'Failed to create invoice: ' + error.message, 'error');
-                })
-                .createInvoiceFromQuote(String(quoteNumber));
+              // NEW: Open additional charges modal instead of creating invoice directly
+              setPendingQuoteNumber(quoteNumber);
+              setAdditionalCharges({
+                rateType: 'Weekend',
+                ratePrice: 0,
+                drivingHoursPrice: 0,
+                onSiteHoursPrice: 0
+              });
+              setShowAdditionalChargesModal(true);
             }
           });
         };
@@ -4880,14 +5235,12 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
 
       // Remove line item
       const removeEditLineItem = (index) => {
-        if (editLineItems.length > 1) {
-          const newItems = editLineItems.filter((_, i) => i !== index);
-          // Renumber items
-          newItems.forEach((item, i) => {
-            item.itemNumber = i + 1;
-          });
-          setEditLineItems(newItems);
-        }
+        const newItems = editLineItems.filter((_, i) => i !== index);
+        // Renumber items
+        newItems.forEach((item, i) => {
+          item.itemNumber = i + 1;
+        });
+        setEditLineItems(newItems);
       };
 
       // Updated handleUpdateQuote function
@@ -4898,13 +5251,17 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
           return;
         }
 
-        // Validate items
-        const validItems = editLineItems.filter(item => item.modelNumber && item.itemName);
+        // NEW VALIDATION: At least Equipment OR Services
+        const hasEquipment = showEditItemsBlock && editLineItems.some(item => item.modelNumber && item.itemName);
+        const hasServices = editServices.length > 0;
         
-        if (validItems.length === 0) {
-          showAlert('warning', 'Please add at least one item with model number and name');
+        if (!hasEquipment && !hasServices) {
+          showAlert('warning', 'Please add at least one Equipment item OR Service');
           return;
         }
+
+        // Validate items (only if items block is visible)
+        const validItems = editLineItems.filter(item => item.modelNumber && item.itemName);
 
         // Prepare quote data with NEW structure
         const quoteData = {
@@ -4921,13 +5278,14 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
           customerEmail: viewingQuote.customerEmail,
           // EDITABLE FIELDS
           objective: editObjective,
-          items: validItems,  // Use NEW items structure
+          items: showEditItemsBlock ? validItems : [],  // Only include if block is visible
+          services: editServices,  // NEW - Add services
           materialCost: editMaterialCost,
           installationCost: editInstallationCost,
           salesTax: editSalesTax,
           downPayment: editDownPayment,
-          taxType: editTaxType,                      // ADD THIS
-          taxRate: editTaxRate,                      // ADD THIS
+          taxType: editTaxType,
+          taxRate: editTaxRate,
           preparedBy: viewingQuote.preparedBy,  // Keep original
           terms: viewingQuote.terms || 'Payment due within 30 days'
         };
@@ -5191,27 +5549,43 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                 {/* OBJECTIVE SECTION - EDITABLE */}
                 <div className="section-header">OBJECTIVE</div>
                 <div className="mb-4">
-                  <textarea
-                    className="form-control"
-                    rows="4"
-                    placeholder="Enter project objective and description..."
-                    value={editMode ? editObjective : (viewingQuote.objective || '')}
-                    onChange={(e) => editMode && setEditObjective(e.target.value)}
-                    readOnly={!editMode}
-                    style={{
-                      fontSize: '14px', 
-                      lineHeight: '1.6', 
-                      resize: 'vertical', 
-                      backgroundColor: editMode ? 'white' : '#f8f9fa'
-                    }}
-                  />
+                  {editMode ? (
+                    <RichTextEditor
+                      value={editObjective}
+                      onChange={setEditObjective}
+                      placeholder="Enter project objective and description..."
+                    />
+                  ) : (
+                    <div 
+                      dangerouslySetInnerHTML={{__html: viewingQuote.objective || ''}} 
+                      style={{
+                        lineHeight: '1.6',
+                        padding: '15px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        minHeight: '50px'
+                      }}
+                    />
+                  )}
                 </div>
 
                 {/* Line Items - FULLY EDITABLE */}
-                <div className="section-header">EQUIPMENT</div>
+                <div className="section-header" style={editMode ? {display: 'flex', justifyContent: 'space-between', alignItems: 'center'} : {}}>
+                  <span>EQUIPMENT</span>
+                  {editMode && !showEditItemsBlock && (
+                    <button 
+                      className="btn btn-success btn-sm"
+                      onClick={() => setShowEditItemsBlock(true)}
+                    >
+                      <i className="bi bi-plus-circle me-2"></i>
+                      Add Item
+                    </button>
+                  )}
+                </div>
                 {!editMode ? (
                   // VIEW MODE - Just display
-                  <table className="items-table">
+                  viewingQuote.items && viewingQuote.items.length > 0 ? (
+                    <table className="items-table">
                     <thead>
                       <tr>
                         <th style={{width: '5%'}}>Item</th>
@@ -5233,10 +5607,12 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                       ))}
                     </tbody>
                   </table>
+                  ) : null
                 ) : (
                   // EDIT MODE - Full editing capabilities
-                  <>
-                    <table className="items-table">
+                  showEditItemsBlock && (
+                    <>
+                      <table className="items-table">
                       <thead>
                         <tr>
                           <th style={{width: '5%'}}>Item</th>
@@ -5302,16 +5678,14 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                               />
                             </td>
                             <td className="text-center no-print">
-                              {editLineItems.length > 1 && (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => removeEditLineItem(index)}
-                                  title="Delete item"
-                                >
-                                  <i className="bi bi-trash"></i>
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-danger"
+                                onClick={() => removeEditLineItem(index)}
+                                title="Delete item"
+                              >
+                                <i className="bi bi-trash"></i>
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -5325,7 +5699,77 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                       <i className="bi bi-plus-circle me-1"></i>
                       Add Line Item
                     </button>
-                  </>
+                    </>
+                  )
+                )}
+
+                {/* Services Section - NEW */}
+                <div className="section-header" style={editMode ? {marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'} : {marginTop: '30px'}}>
+                  <span>SERVICES</span>
+                  {editMode && (
+                    <button 
+                      className="btn btn-success btn-sm"
+                      onClick={() => setShowEditServiceModal(true)}
+                    >
+                      <i className="bi bi-plus-circle me-2"></i>
+                      Add Service
+                    </button>
+                  )}
+                </div>
+                
+                {!editMode ? (
+                  // VIEW MODE - Display services
+                  viewingQuote.services && viewingQuote.services.length > 0 ? (
+                    <table className="items-table">
+                      <thead>
+                        <tr>
+                          <th>Service Code</th>
+                          <th>Service Name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewingQuote.services.map((service, index) => (
+                          <tr key={index}>
+                            <td><strong>{service.serviceCode}</strong></td>
+                            <td>{service.serviceName}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : null
+                ) : (
+                  // EDIT MODE - Services table
+                  editServices.length > 0 && (
+                    <table className="items-table">
+                      <thead>
+                        <tr>
+                          <th style={{width: '30%'}}>Service Code</th>
+                          <th style={{width: '60%'}}>Service Name</th>
+                          <th style={{width: '10%'}} className="no-print">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editServices.map((service, index) => (
+                          <tr key={index}>
+                            <td><strong>{service.serviceCode}</strong></td>
+                            <td>{service.serviceName}</td>
+                            <td className="no-print">
+                              <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => {
+                                  const newServices = editServices.filter((_, i) => i !== index);
+                                  setEditServices(newServices);
+                                }}
+                                title="Remove service"
+                              >
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
                 )}
 
                 {/* Totals Section -- all quote */}
@@ -5513,6 +5957,17 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                 )}
               </div>
             </div>
+            
+            {/* Service Selection Modal for Quote Edit */}
+            {showEditServiceModal && (
+              <ServiceSelectionModal
+                onClose={() => setShowEditServiceModal(false)}
+                onServicesSelected={(selectedServices) => {
+                  setEditServices([...editServices, ...selectedServices]);
+                  setShowEditServiceModal(false);
+                }}
+              />
+            )}
           </>
         );
       }
@@ -5530,7 +5985,8 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
 
       // Otherwise, show the quotes list
       return (
-        <div className="list-view-container">
+        <>
+          <div className="list-view-container">
           {alert.show && (
             <div className={`alert alert-${alert.type} alert-dismissible fade show`} role="alert">
               {alert.message}
@@ -5671,6 +6127,138 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
             )}
           </div>
         </div>
+        
+        {/* Additional Charges Modal */}
+        {showAdditionalChargesModal && (
+          <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}} onClick={() => setShowAdditionalChargesModal(false)}>
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header" style={{backgroundColor: '#001f3f', color: 'white'}}>
+                  <h5 className="modal-title">
+                    <i className="bi bi-cash-stack me-2"></i>
+                    Additional Charges
+                  </h5>
+                  <button type="button" className="btn-close" style={{filter: 'brightness(0) invert(1)'}} onClick={() => setShowAdditionalChargesModal(false)}></button>
+                </div>
+                
+                <div className="modal-body">
+                  <p style={{marginBottom: '20px', color: '#666'}}>
+                    Enter additional charges for this invoice (all fields are optional):
+                  </p>
+                  
+                  <div className="row g-3">
+                    {/* Rate Type & Rate Price */}
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>Rate Type:</strong></label>
+                      <select 
+                        className="form-select"
+                        value={additionalCharges.rateType}
+                        onChange={(e) => setAdditionalCharges({...additionalCharges, rateType: e.target.value})}
+                      >
+                        <option value="Weekend">Weekend</option>
+                        <option value="Weekday">Weekday</option>
+                      </select>
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>Rate Price:</strong></label>
+                      <input 
+                        type="number" 
+                        className="form-control"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={additionalCharges.ratePrice}
+                        onChange={(e) => setAdditionalCharges({...additionalCharges, ratePrice: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                    
+                    {/* Driving Hours Price */}
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>Driving Hours:</strong></label>
+                      <input type="text" className="form-control" value="Price" readOnly style={{backgroundColor: '#e9ecef'}} />
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>Driving Price:</strong></label>
+                      <input 
+                        type="number" 
+                        className="form-control"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={additionalCharges.drivingHoursPrice}
+                        onChange={(e) => setAdditionalCharges({...additionalCharges, drivingHoursPrice: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                    
+                    {/* On-Site Hours Price */}
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>On-Site Hours:</strong></label>
+                      <input type="text" className="form-control" value="Price" readOnly style={{backgroundColor: '#e9ecef'}} />
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <label className="form-label"><strong>On-Site Price:</strong></label>
+                      <input 
+                        type="number" 
+                        className="form-control"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={additionalCharges.onSiteHoursPrice}
+                        onChange={(e) => setAdditionalCharges({...additionalCharges, onSiteHoursPrice: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '5px'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                      <span><strong>{additionalCharges.rateType} Rate:</strong></span>
+                      <span>${additionalCharges.ratePrice.toFixed(2)}</span>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                      <span><strong>Driving Hours:</strong></span>
+                      <span>${additionalCharges.drivingHoursPrice.toFixed(2)}</span>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                      <span><strong>On-Site Hours:</strong></span>
+                      <span>${additionalCharges.onSiteHoursPrice.toFixed(2)}</span>
+                    </div>
+                    <hr style={{margin: '10px 0'}} />
+                    <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                      <span><strong>Total Additional Charges:</strong></span>
+                      <span style={{fontSize: '18px', fontWeight: 'bold', color: '#001f3f'}}>
+                        ${(additionalCharges.ratePrice + additionalCharges.drivingHoursPrice + additionalCharges.onSiteHoursPrice).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="modal-footer">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => setShowAdditionalChargesModal(false)}
+                  >
+                    <i className="bi bi-x-circle me-2"></i>
+                    Close
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-navy" 
+                    onClick={handleCreateInvoiceWithCharges}
+                  >
+                    <i className="bi bi-check-circle me-2"></i>
+                    Confirm, Create Invoice
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       );
     }
 
@@ -5697,8 +6285,8 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
         installationCost: 0,
         salesTax: 0,
         downPayment: 0,
-        taxType: 'Percentage',  // ADD THIS
-        taxRate: 0,             // ADD THIS
+        taxType: 'Percentage',
+        taxRate: 0,
         terms: 'Payment due within 30 days',
         preparedBy: 'admin'
       });
@@ -5707,6 +6295,18 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
       const [lineItems, setLineItems] = useState([
         { itemNumber: 1, modelNumber: '', itemName: '', category: '', qty: 1, lockedField: '' }
       ]);
+      const [manualInvoiceServices, setManualInvoiceServices] = useState([]); // NEW - Services for manual invoice
+      const [showManualInvoiceServiceModal, setShowManualInvoiceServiceModal] = useState(false); // NEW - Service modal
+      const [showManualInvoiceItemsBlock, setShowManualInvoiceItemsBlock] = useState(false); // NEW - Show/hide items
+      
+      // NEW: Additional charges modal for manual invoice
+      const [showManualInvoiceChargesModal, setShowManualInvoiceChargesModal] = useState(false);
+      const [manualInvoiceCharges, setManualInvoiceCharges] = useState({
+        rateType: 'Weekend',
+        ratePrice: 0,
+        drivingHoursPrice: 0,
+        onSiteHoursPrice: 0
+      });
       
       // View Invoice Modal States
       const [showViewInvoiceModal, setShowViewInvoiceModal] = useState(false);
@@ -6210,11 +6810,36 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
           return;
         }
 
-        const validItems = lineItems.filter(item => item.modelNumber && item.qty > 0);
-        if (validItems.length === 0) {
-          showAlert('error', 'Please add at least one item');
+        // NEW VALIDATION: At least Equipment OR Services
+        const hasEquipment = showManualInvoiceItemsBlock && lineItems.some(item => item.modelNumber && item.qty > 0);
+        const hasServices = manualInvoiceServices.length > 0;
+        
+        if (!hasEquipment && !hasServices) {
+          showAlert('error', 'Please add at least one Equipment item OR Service');
           return;
         }
+
+        // NEW: Show additional charges modal instead of saving directly
+        setManualInvoiceCharges({
+          rateType: 'Weekend',
+          ratePrice: 0,
+          drivingHoursPrice: 0,
+          onSiteHoursPrice: 0
+        });
+        setShowManualInvoiceChargesModal(true);
+      };
+      
+      // NEW: Function to actually save manual invoice with charges
+      const saveManualInvoiceWithCharges = () => {
+        // Validation
+        if (manualInvoiceCharges.ratePrice < 0 || manualInvoiceCharges.drivingHoursPrice < 0 || manualInvoiceCharges.onSiteHoursPrice < 0) {
+          showAlert('warning', 'Prices cannot be negative');
+          return;
+        }
+        
+        setShowManualInvoiceChargesModal(false);
+
+        const validItems = lineItems.filter(item => item.modelNumber && item.qty > 0);
 
         const totals = calculateManualInvoiceTotals();
 
@@ -6228,18 +6853,23 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
           customerPhone: selectedCustomer.phone || '',
           customerEmail: selectedCustomer.email || '',
           objective: manualInvoice.objective,
-          lineItems: validItems,
+          lineItems: showManualInvoiceItemsBlock ? validItems : [],
+          services: manualInvoiceServices,
           materialCost: manualInvoice.materialCost,
           installationCost: manualInvoice.installationCost,
           subTotal: totals.subTotal,
           salesTax: manualInvoice.salesTax,
-          grandTotal: totals.grandTotal,
+          grandTotal: totals.grandTotal + manualInvoiceCharges.ratePrice + manualInvoiceCharges.drivingHoursPrice + manualInvoiceCharges.onSiteHoursPrice, // NEW: Add charges to total
           downPayment: manualInvoice.downPayment,
-          finalPayment: totals.finalPayment,
-          taxType: manualInvoice.taxType,           // ADD THIS
-          taxRate: manualInvoice.taxRate,           // ADD THIS
+          finalPayment: (totals.grandTotal + manualInvoiceCharges.ratePrice + manualInvoiceCharges.drivingHoursPrice + manualInvoiceCharges.onSiteHoursPrice) - manualInvoice.downPayment, // NEW: Update final payment
+          taxType: manualInvoice.taxType,
+          taxRate: manualInvoice.taxRate,
           terms: manualInvoice.terms,
-          preparedBy: manualInvoice.preparedBy
+          preparedBy: manualInvoice.preparedBy,
+          rateType: manualInvoiceCharges.rateType,           // NEW
+          ratePrice: manualInvoiceCharges.ratePrice,         // NEW
+          drivingHoursPrice: manualInvoiceCharges.drivingHoursPrice, // NEW
+          onSiteHoursPrice: manualInvoiceCharges.onSiteHoursPrice   // NEW
         };
 
         setSavingManualInvoice(true);
@@ -6260,14 +6890,16 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                 installationCost: 0,
                 salesTax: 0,
                 downPayment: 0,
-                taxType: 'Percentage',  // RESET TO DEFAULT
-                taxRate: 0,             // RESET TO 0
+                taxType: 'Percentage',
+                taxRate: 0,
                 terms: 'Payment due within 30 days',
                 preparedBy: 'admin'
               });
               setSelectedCustomer(null);
               setCustomerIdInput('');
               setLineItems([{ itemNumber: 1, modelNumber: '', itemName: '', category: '', qty: 1, lockedField: '' }]);
+              setManualInvoiceServices([]);  // NEW - Reset services
+              setShowManualInvoiceItemsBlock(false);  // NEW - Reset UI state
             } else {
               showAlert('error', result.message || 'Failed to create invoice');
             }
@@ -6523,43 +7155,74 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                               <h6 className="mb-0"><i className="bi bi-bullseye me-2"></i>Project Objective</h6>
                             </div>
                             <div className="card-body">
-                              <p className="mb-0">{viewingInvoice.objective}</p>
+                              <div dangerouslySetInnerHTML={{__html: viewingInvoice.objective}} style={{lineHeight: '1.6'}}></div>
                             </div>
                           </div>
                         )}
 
-                        {/* Items */}
-                        <div className="card mb-3">
-                          <div className="card-header bg-light">
-                            <h6 className="mb-0"><i className="bi bi-box me-2"></i>Items</h6>
-                          </div>
-                          <div className="card-body">
-                            <div className="table-responsive">
-                              <table className="table table-bordered table-sm">
-                                <thead className="table-light">
-                                  <tr>
-                                    <th style={{width: '5%'}}>Item</th>
-                                    <th>Model Number</th>
-                                    <th>Item Name</th>
-                                    <th>Category</th>
-                                    <th style={{width: '10%'}}>QTY</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {viewingInvoice.items && viewingInvoice.items.map((item, index) => (
-                                    <tr key={index}>
-                                      <td className="text-center">{index + 1}</td>
-                                      <td>{item.modelNumber}</td>
-                                      <td>{item.itemName}</td>
-                                      <td>{item.category}</td>
-                                      <td className="text-center">{item.qty}</td>
+                        {/* Equipment Items */}
+                        {viewingInvoice.items && viewingInvoice.items.length > 0 && (
+                          <div className="card mb-3">
+                            <div className="card-header bg-light">
+                              <h6 className="mb-0"><i className="bi bi-box me-2"></i>Equipment</h6>
+                            </div>
+                            <div className="card-body">
+                              <div className="table-responsive">
+                                <table className="table table-bordered table-sm">
+                                  <thead className="table-light">
+                                    <tr>
+                                      <th style={{width: '5%'}}>Item</th>
+                                      <th>Model Number</th>
+                                      <th>Item Name</th>
+                                      <th>Category</th>
+                                      <th style={{width: '10%'}}>QTY</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody>
+                                    {viewingInvoice.items.map((item, index) => (
+                                      <tr key={index}>
+                                        <td className="text-center">{index + 1}</td>
+                                        <td>{item.modelNumber}</td>
+                                        <td>{item.itemName}</td>
+                                        <td>{item.category}</td>
+                                        <td className="text-center">{item.qty}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
+                        
+                        {/* Services */}
+                        {viewingInvoice.services && viewingInvoice.services.length > 0 && (
+                          <div className="card mb-3">
+                            <div className="card-header bg-light">
+                              <h6 className="mb-0"><i className="bi bi-gear me-2"></i>Services</h6>
+                            </div>
+                            <div className="card-body">
+                              <div className="table-responsive">
+                                <table className="table table-bordered table-sm">
+                                  <thead className="table-light">
+                                    <tr>
+                                      <th>Service Code</th>
+                                      <th>Service Name</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {viewingInvoice.services.map((service, index) => (
+                                      <tr key={index}>
+                                        <td><strong>{service.serviceCode}</strong></td>
+                                        <td>{service.serviceName}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Totals */}
                         <div className="card mb-3">
@@ -6587,6 +7250,36 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                                       <td>Sales Tax</td>
                                       <td className="text-end">${parseFloat(viewingInvoice.salesTax || 0).toFixed(2)}</td>
                                     </tr>
+                                    
+                                    {/* Additional Charges Section */}
+                                    {(viewingInvoice.ratePrice > 0 || viewingInvoice.drivingHoursPrice > 0 || viewingInvoice.onSiteHoursPrice > 0) && (
+                                      <>
+                                        <tr style={{borderTop: '1px solid #dee2e6'}}>
+                                          <td colSpan="2" className="text-center" style={{backgroundColor: '#f8f9fa', fontWeight: 'bold'}}>
+                                            Additional Charges
+                                          </td>
+                                        </tr>
+                                        {viewingInvoice.ratePrice > 0 && (
+                                          <tr>
+                                            <td>&nbsp;&nbsp;{viewingInvoice.rateType} Rate</td>
+                                            <td className="text-end">${parseFloat(viewingInvoice.ratePrice).toFixed(2)}</td>
+                                          </tr>
+                                        )}
+                                        {viewingInvoice.drivingHoursPrice > 0 && (
+                                          <tr>
+                                            <td>&nbsp;&nbsp;Driving Hours</td>
+                                            <td className="text-end">${parseFloat(viewingInvoice.drivingHoursPrice).toFixed(2)}</td>
+                                          </tr>
+                                        )}
+                                        {viewingInvoice.onSiteHoursPrice > 0 && (
+                                          <tr>
+                                            <td>&nbsp;&nbsp;On-Site Hours</td>
+                                            <td className="text-end">${parseFloat(viewingInvoice.onSiteHoursPrice).toFixed(2)}</td>
+                                          </tr>
+                                        )}
+                                      </>
+                                    )}
+                                    
                                     <tr style={{borderTop: '2px solid #001f3f', backgroundColor: '#f8f9fa'}}>
                                       <td><strong>GRAND TOTAL</strong></td>
                                       <td className="text-end"><strong style={{fontSize: '1.2rem', color: '#001f3f'}}>${parseFloat(viewingInvoice.grandTotal || 0).toFixed(2)}</strong></td>
@@ -6765,24 +7458,32 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                         <h6 className="mb-0"><i className="bi bi-bullseye me-2"></i>Project Objective</h6>
                       </div>
                       <div className="card-body">
-                        <textarea
-                          className="form-control"
-                          rows="3"
-                          placeholder="Enter project objective..."
+                        <RichTextEditor
                           value={manualInvoice.objective}
-                          onChange={(e) => setManualInvoice({...manualInvoice, objective: e.target.value})}
-                        ></textarea>
+                          onChange={(value) => setManualInvoice({...manualInvoice, objective: value})}
+                          placeholder="Enter project objective..."
+                        />
                       </div>
                     </div>
 
                     {/* Equipment Items */}
                     <div className="card mb-3">
-                      <div className="card-header bg-light">
+                      <div className="card-header bg-light" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                         <h6 className="mb-0"><i className="bi bi-box me-2"></i>Equipment Items</h6>
+                        {!showManualInvoiceItemsBlock && (
+                          <button 
+                            className="btn btn-success btn-sm"
+                            onClick={() => setShowManualInvoiceItemsBlock(true)}
+                          >
+                            <i className="bi bi-plus-circle me-2"></i>
+                            Add Item
+                          </button>
+                        )}
                       </div>
-                      <div className="card-body">
-                        <div className="table-responsive">
-                          <table className="table table-bordered">
+                      {showManualInvoiceItemsBlock && (
+                        <div className="card-body">
+                          <div className="table-responsive">
+                            <table className="table table-bordered">
                             <thead className="table-light">
                               <tr>
                                 <th style={{width: '5%'}}>Item</th>
@@ -6854,14 +7555,12 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                                     />
                                   </td>
                                   <td className="text-center">
-                                    {lineItems.length > 1 && (
-                                      <button
-                                        className="btn btn-danger btn-sm"
-                                        onClick={() => removeLineItem(index)}
-                                      >
-                                        <i className="bi bi-trash"></i>
-                                      </button>
-                                    )}
+                                    <button
+                                      className="btn btn-danger btn-sm"
+                                      onClick={() => removeLineItem(index)}
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
                                   </td>
                                 </tr>
                               ))}
@@ -6872,6 +7571,55 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
                           <i className="bi bi-plus-circle me-2"></i>Add Line Item
                         </button>
                       </div>
+                      )}
+                    </div>
+
+                    {/* Services Section - NEW */}
+                    <div className="card mb-3">
+                      <div className="card-header bg-light" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <h6 className="mb-0"><i className="bi bi-gear me-2"></i>Services</h6>
+                        <button 
+                          className="btn btn-success btn-sm"
+                          onClick={() => setShowManualInvoiceServiceModal(true)}
+                        >
+                          <i className="bi bi-plus-circle me-2"></i>
+                          Add Service
+                        </button>
+                      </div>
+                      {manualInvoiceServices.length > 0 && (
+                        <div className="card-body">
+                          <div className="table-responsive">
+                            <table className="table table-bordered">
+                              <thead className="table-light">
+                                <tr>
+                                  <th>Service Code</th>
+                                  <th>Service Name</th>
+                                  <th style={{width: '10%'}}>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {manualInvoiceServices.map((service, index) => (
+                                  <tr key={index}>
+                                    <td><strong>{service.serviceCode}</strong></td>
+                                    <td>{service.serviceName}</td>
+                                    <td className="text-center">
+                                      <button
+                                        className="btn btn-danger btn-sm"
+                                        onClick={() => {
+                                          const newServices = manualInvoiceServices.filter((_, i) => i !== index);
+                                          setManualInvoiceServices(newServices);
+                                        }}
+                                      >
+                                        <i className="bi bi-trash"></i>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Totals */}
@@ -7023,6 +7771,599 @@ function CustomerProfileModal({ customer, onClose, onUpdate }) {
               </div>
             </div>
           )}
+          
+          {/* Service Selection Modal for Manual Invoice */}
+          {showManualInvoiceServiceModal && (
+            <ServiceSelectionModal
+              onClose={() => setShowManualInvoiceServiceModal(false)}
+              onServicesSelected={(selectedServices) => {
+                setManualInvoiceServices([...manualInvoiceServices, ...selectedServices]);
+                setShowManualInvoiceServiceModal(false);
+              }}
+            />
+          )}
+          
+          {/* Additional Charges Modal for Manual Invoice */}
+          {showManualInvoiceChargesModal && (
+            <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060}} onClick={() => setShowManualInvoiceChargesModal(false)}>
+              <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-content">
+                  <div className="modal-header" style={{backgroundColor: '#001f3f', color: 'white'}}>
+                    <h5 className="modal-title">
+                      <i className="bi bi-cash-stack me-2"></i>
+                      Additional Charges
+                    </h5>
+                    <button type="button" className="btn-close" style={{filter: 'brightness(0) invert(1)'}} onClick={() => setShowManualInvoiceChargesModal(false)}></button>
+                  </div>
+                  
+                  <div className="modal-body">
+                    <p style={{marginBottom: '20px', color: '#666'}}>
+                      Enter additional charges for this invoice (all fields are optional):
+                    </p>
+                    
+                    <div className="row g-3">
+                      {/* Rate Type & Rate Price */}
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>Rate Type:</strong></label>
+                        <select 
+                          className="form-select"
+                          value={manualInvoiceCharges.rateType}
+                          onChange={(e) => setManualInvoiceCharges({...manualInvoiceCharges, rateType: e.target.value})}
+                        >
+                          <option value="Weekend">Weekend</option>
+                          <option value="Weekday">Weekday</option>
+                        </select>
+                      </div>
+                      
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>Rate Price:</strong></label>
+                        <input 
+                          type="number" 
+                          className="form-control"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          value={manualInvoiceCharges.ratePrice}
+                          onChange={(e) => setManualInvoiceCharges({...manualInvoiceCharges, ratePrice: parseFloat(e.target.value) || 0})}
+                        />
+                      </div>
+                      
+                      {/* Driving Hours Price */}
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>Driving Hours:</strong></label>
+                        <input type="text" className="form-control" value="Price" readOnly style={{backgroundColor: '#e9ecef'}} />
+                      </div>
+                      
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>Driving Price:</strong></label>
+                        <input 
+                          type="number" 
+                          className="form-control"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          value={manualInvoiceCharges.drivingHoursPrice}
+                          onChange={(e) => setManualInvoiceCharges({...manualInvoiceCharges, drivingHoursPrice: parseFloat(e.target.value) || 0})}
+                        />
+                      </div>
+                      
+                      {/* On-Site Hours Price */}
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>On-Site Hours:</strong></label>
+                        <input type="text" className="form-control" value="Price" readOnly style={{backgroundColor: '#e9ecef'}} />
+                      </div>
+                      
+                      <div className="col-md-6">
+                        <label className="form-label"><strong>On-Site Price:</strong></label>
+                        <input 
+                          type="number" 
+                          className="form-control"
+                          placeholder="0.00"
+                          min="0"
+                          step="0.01"
+                          value={manualInvoiceCharges.onSiteHoursPrice}
+                          onChange={(e) => setManualInvoiceCharges({...manualInvoiceCharges, onSiteHoursPrice: parseFloat(e.target.value) || 0})}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Summary */}
+                    <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '5px'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                        <span><strong>{manualInvoiceCharges.rateType} Rate:</strong></span>
+                        <span>${manualInvoiceCharges.ratePrice.toFixed(2)}</span>
+                      </div>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                        <span><strong>Driving Hours:</strong></span>
+                        <span>${manualInvoiceCharges.drivingHoursPrice.toFixed(2)}</span>
+                      </div>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                        <span><strong>On-Site Hours:</strong></span>
+                        <span>${manualInvoiceCharges.onSiteHoursPrice.toFixed(2)}</span>
+                      </div>
+                      <hr style={{margin: '10px 0'}} />
+                      <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                        <span><strong>Total Additional Charges:</strong></span>
+                        <span style={{fontSize: '18px', fontWeight: 'bold', color: '#001f3f'}}>
+                          ${(manualInvoiceCharges.ratePrice + manualInvoiceCharges.drivingHoursPrice + manualInvoiceCharges.onSiteHoursPrice).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="modal-footer">
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      onClick={() => setShowManualInvoiceChargesModal(false)}
+                    >
+                      <i className="bi bi-x-circle me-2"></i>
+                      Close
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-navy" 
+                      onClick={saveManualInvoiceWithCharges}
+                      disabled={savingManualInvoice}
+                    >
+                      <i className="bi bi-check-circle me-2"></i>
+                      Confirm, Create Invoice
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // ============================================
+    // SERVICES VIEW COMPONENT
+    // ============================================
+    
+    function ServicesView() {
+      const [services, setServices] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [showAddModal, setShowAddModal] = useState(false);
+      const tableRef = useRef(null);
+      const dataTableRef = useRef(null);
+      
+      // Load services on mount
+      useEffect(() => {
+        loadServices();
+      }, []);
+      
+      const loadServices = (skipLoading = false) => {
+        if (!skipLoading) {
+          setLoading(true);
+        }
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            setLoading(false);
+            if (result.success) {
+              setServices(result.services || []);
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            setLoading(false);
+            Swal.fire('Error!', 'Failed to load services: ' + error.message, 'error');
+          })
+          .getAllServices();
+      };
+      
+      // Search services
+      const handleSearch = () => {
+        if (!searchTerm.trim()) {
+          loadServices();
+          return;
+        }
+        
+        setLoading(true);
+        google.script.run
+          .withSuccessHandler((result) => {
+            setLoading(false);
+            if (result.success) {
+              setServices(result.services || []);
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            setLoading(false);
+            Swal.fire('Error!', 'Failed to search: ' + error.message, 'error');
+          })
+          .searchServices(searchTerm);
+      };
+      
+      // Initialize DataTable
+      useEffect(() => {
+        if (!loading && services.length > 0 && tableRef.current) {
+          // Destroy existing DataTable if it exists
+          if (dataTableRef.current) {
+            dataTableRef.current.destroy();
+          }
+          
+          // Initialize new DataTable
+          setTimeout(() => {
+            try {
+              dataTableRef.current = $(tableRef.current).DataTable({
+                data: services,
+                columns: [
+                  { 
+                    data: 'serviceCode', 
+                    title: 'Service Code',
+                    render: function(data) {
+                      return '<strong>' + data + '</strong>';
+                    }
+                  },
+                  { 
+                    data: 'serviceName', 
+                    title: 'Service Name'
+                  },
+                  {
+                    data: null,
+                    title: 'Actions',
+                    orderable: false,
+                    render: function(data, type, row) {
+                      return '<button class="btn-action btn-edit" onclick="window.editService(\'' + row.serviceCode + '\')" title="Edit Service"><i class="bi bi-pencil-fill"></i></button> ' +
+                             '<button class="btn-action btn-delete" onclick="window.deleteService(\'' + row.serviceCode + '\')" title="Delete Service"><i class="bi bi-trash-fill"></i></button>';
+                    }
+                  }
+                ],
+                responsive: true,
+                pageLength: 10,
+                order: [[0, 'desc']],
+                language: {
+                  emptyTable: "No services found"
+                },
+                destroy: true,
+                retrieve: false
+              });
+            } catch (e) {
+              console.error('DataTable error:', e);
+            }
+          }, 50);
+        }
+        
+        return () => {
+          if (dataTableRef.current) {
+            try {
+              dataTableRef.current.destroy();
+              dataTableRef.current = null;
+            } catch (e) {
+              console.error('DataTable cleanup error:', e);
+            }
+          }
+        };
+      }, [services, loading]);
+      
+      // Window functions for DataTable buttons
+      useEffect(() => {
+        window.editService = (serviceCode) => {
+          const service = services.find(s => s.serviceCode === serviceCode);
+          if (service) {
+            Swal.fire({
+              title: 'Edit Service',
+              html: `
+                <div style="text-align: left;">
+                  <label style="display: block; margin-bottom: 5px; font-weight: bold;">Service Code:</label>
+                  <input type="text" id="edit-code" class="swal2-input" value="${service.serviceCode}" readonly style="background: #f0f0f0; cursor: not-allowed;">
+                  <label style="display: block; margin-top: 15px; margin-bottom: 5px; font-weight: bold;">Service Name:</label>
+                  <input type="text" id="edit-name" class="swal2-input" value="${service.serviceName}" placeholder="Enter service name">
+                </div>
+              `,
+              showCancelButton: true,
+              confirmButtonColor: '#001f3f',
+              confirmButtonText: 'Update',
+              preConfirm: () => {
+                const newName = document.getElementById('edit-name').value;
+                if (!newName.trim()) {
+                  Swal.showValidationMessage('Service name is required');
+                  return false;
+                }
+                return newName.trim();
+              }
+            }).then((result) => {
+              if (result.isConfirmed) {
+                google.script.run
+                  .withSuccessHandler((res) => {
+                    if (res.success) {
+                      Swal.fire('Success!', res.message, 'success');
+                      loadServices(true);
+                    } else {
+                      Swal.fire('Error!', res.message, 'error');
+                    }
+                  })
+                  .withFailureHandler((error) => {
+                    Swal.fire('Error!', 'Failed to update: ' + error.message, 'error');
+                  })
+                  .updateService(serviceCode, result.value);
+              }
+            });
+          }
+        };
+        
+        window.deleteService = (serviceCode) => {
+          Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f3f',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete it!'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              google.script.run
+                .withSuccessHandler((res) => {
+                  if (res.success) {
+                    Swal.fire('Deleted!', res.message, 'success');
+                    loadServices(true);
+                  } else {
+                    Swal.fire('Error!', res.message, 'error');
+                  }
+                })
+                .withFailureHandler((error) => {
+                  Swal.fire('Error!', 'Failed to delete: ' + error.message, 'error');
+                })
+                .deleteService(serviceCode);
+            }
+          });
+        };
+        
+        return () => {
+          delete window.editService;
+          delete window.deleteService;
+        };
+      }, [services]);
+      
+      return (
+        <div className="list-view-container">
+          <div className="list-view-header">
+            <h1 className="list-view-title">
+              <i className="bi bi-gear-fill me-3"></i>
+              Services
+            </h1>
+            <button 
+              className="btn btn-navy"
+              onClick={() => setShowAddModal(true)}
+            >
+              <i className="bi bi-plus-circle me-2"></i>
+              Add Service
+            </button>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="data-card" style={{marginBottom: '20px', padding: '20px'}}>
+            <div className="row g-3">
+              <div className="col-md-10">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Search by Service Code or Service Name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
+                />
+              </div>
+              <div className="col-md-2">
+                <button 
+                  className="btn btn-navy w-100"
+                  onClick={handleSearch}
+                >
+                  <i className="bi bi-search me-2"></i>
+                  Search
+                </button>
+              </div>
+            </div>
+            {searchTerm && (
+              <button
+                className="btn btn-outline-secondary btn-sm mt-3"
+                onClick={() => {
+                  setSearchTerm('');
+                  loadServices();
+                }}
+              >
+                <i className="bi bi-x-circle me-1"></i>
+                Clear Search
+              </button>
+            )}
+          </div>
+          
+          {/* Services Table */}
+          <div className="data-card">
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            ) : (
+              <table ref={tableRef} className="table table-striped table-hover" style={{width: '100%'}}></table>
+            )}
+          </div>
+          
+          {/* Add Service Modal */}
+          {showAddModal && (
+            <AddServiceModal 
+              onClose={() => setShowAddModal(false)}
+              onServiceAdded={() => loadServices(true)}
+            />
+          )}
+        </div>
+      );
+    }
+    
+    // ============================================
+    // ADD SERVICE MODAL COMPONENT
+    // ============================================
+    
+    function AddServiceModal({ onClose, onServiceAdded }) {
+      const [serviceName, setServiceName] = useState('');
+      const [addedServices, setAddedServices] = useState([]);
+      const [adding, setAdding] = useState(false);
+      
+      const handleAddService = () => {
+        if (!serviceName.trim()) {
+          Swal.fire('Error!', 'Please enter a service name', 'error');
+          return;
+        }
+        
+        setAdding(true);
+        
+        google.script.run
+          .withSuccessHandler((result) => {
+            setAdding(false);
+            if (result.success) {
+              // Add to local list
+              setAddedServices([...addedServices, {
+                serviceCode: result.serviceCode,
+                serviceName: result.serviceName
+              }]);
+              
+              // Clear input
+              setServiceName('');
+              
+              // Show success toast
+              Swal.fire({
+                icon: 'success',
+                title: 'Added!',
+                text: `${result.serviceCode} - ${result.serviceName}`,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000
+              });
+              
+              // Notify parent to reload
+              onServiceAdded();
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            setAdding(false);
+            Swal.fire('Error!', 'Failed to add service: ' + error.message, 'error');
+          })
+          .addService(serviceName.trim());
+      };
+      
+      const handleClose = () => {
+        if (addedServices.length > 0) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Services Added!',
+            text: `${addedServices.length} service(s) added successfully`,
+            confirmButtonColor: '#001f3f'
+          }).then(() => {
+            onClose();
+          });
+        } else {
+          onClose();
+        }
+      };
+      
+      return (
+        <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}} onClick={handleClose}>
+          <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header" style={{backgroundColor: '#001f3f', color: 'white'}}>
+                <h5 className="modal-title">
+                  <i className="bi bi-plus-circle me-2"></i>
+                  Add Service
+                </h5>
+                <button type="button" className="btn-close" style={{filter: 'brightness(0) invert(1)'}} onClick={handleClose}></button>
+              </div>
+              
+              <div className="modal-body">
+                {/* Add Service Form */}
+                <div className="row g-3 mb-4">
+                  <div className="col-md-9">
+                    <label className="form-label"><strong>Service Name <span style={{color: 'red'}}>*</span></strong></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Enter service name"
+                      value={serviceName}
+                      onChange={(e) => setServiceName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !adding) {
+                          handleAddService();
+                        }
+                      }}
+                      disabled={adding}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="col-md-3 d-flex align-items-end">
+                    <button 
+                      className="btn btn-success w-100"
+                      onClick={handleAddService}
+                      disabled={adding}
+                    >
+                      {adding ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2"></span>
+                          Adding...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-plus-circle me-2"></i>
+                          Add
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Added Services List */}
+                {addedServices.length > 0 && (
+                  <>
+                    <hr />
+                    <h6 style={{color: '#001f3f', fontWeight: 'bold', marginBottom: '15px'}}>
+                      <i className="bi bi-check-circle-fill me-2" style={{color: '#28a745'}}></i>
+                      Added Services ({addedServices.length})
+                    </h6>
+                    <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                      <table className="table table-bordered table-sm">
+                        <thead style={{backgroundColor: '#001f3f', color: 'white', position: 'sticky', top: 0}}>
+                          <tr>
+                            <th style={{width: '40%'}}>Service Code</th>
+                            <th style={{width: '60%'}}>Service Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {addedServices.map((service, index) => (
+                            <tr key={index}>
+                              <td><strong>{service.serviceCode}</strong></td>
+                              <td>{service.serviceName}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={handleClose}>
+                  <i className="bi bi-x-circle me-2"></i>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -9328,10 +10669,12 @@ function PurchaseEntryView() {
   // Modals
   const [showCreatePOModal, setShowCreatePOModal] = useState(false);
   const [showViewPOModal, setShowViewPOModal] = useState(false);
+  const [showEditPOModal, setShowEditPOModal] = useState(false); // NEW: Edit modal
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   
   // Current data
   const [currentPO, setCurrentPO] = useState(null);
+  const [editingPO, setEditingPO] = useState(null); // NEW: PO being edited
   
   // NEW: Category form state
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -9511,7 +10854,9 @@ function PurchaseEntryView() {
             title: 'Actions',
             orderable: false,
             render: function(data, type, row) {
-              return '<button class="btn-action btn-view" onclick="window.viewPO(\'' + row.poNumber + '\')" title="View PO"><i class="bi bi-eye-fill"></i></button> <button class="btn-action btn-delete" onclick="window.deletePO(\'' + row.poNumber + '\')" title="Delete PO"><i class="bi bi-trash-fill"></i></button>';
+              return '<button class="btn-action btn-view" onclick="window.viewPO(\'' + row.poNumber + '\')" title="View PO"><i class="bi bi-eye-fill"></i></button> ' +
+                     '<button class="btn-action btn-edit" onclick="window.editPO(\'' + row.poNumber + '\')" title="Edit PO"><i class="bi bi-pencil-fill"></i></button> ' +
+                     '<button class="btn-action btn-delete" onclick="window.deletePO(\'' + row.poNumber + '\')" title="Delete PO"><i class="bi bi-trash-fill"></i></button>';
             }
           }
         ],
@@ -9609,8 +10954,39 @@ function PurchaseEntryView() {
       });
     };
 
+    // NEW: Edit PO function
+    window.editPO = (poNumber) => {
+      requestAnimationFrame(() => {
+        const po = purchases.find(p => p.poNumber === poNumber);
+        if (po) {
+          // Load PO items from DetailPO sheet
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result.success) {
+                // Prepare editing data with all fields editable
+                const poWithItems = {
+                  ...po,
+                  items: result.items || []
+                };
+                setEditingPO(poWithItems);
+                setTimeout(() => {
+                  setShowEditPOModal(true);
+                }, 50);
+              } else {
+                Swal.fire('Error!', result.message || 'Failed to load PO items', 'error');
+              }
+            })
+            .withFailureHandler((error) => {
+              Swal.fire('Error!', 'Failed to load PO: ' + error.message, 'error');
+            })
+            .getPOItems(poNumber);
+        }
+      });
+    };
+
     return () => {
       delete window.viewPO;
+      delete window.editPO;
       delete window.deletePO;
     };
   }, [purchases]);
@@ -10221,6 +11597,17 @@ function PurchaseEntryView() {
         />
       )}
       
+      {/* Edit PO Modal */}
+      {showEditPOModal && editingPO && (
+        <EditPOModalContent 
+          po={editingPO}
+          setShowEditPOModal={setShowEditPOModal}
+          products={products}
+          categories={categories}
+          onSave={() => loadPurchases(true)}
+        />
+      )}
+      
       {/* These will be in the next file... */}
     </div>
   );
@@ -10677,6 +12064,787 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
   );
 }
 
+// Edit PO Modal Component
+function EditPOModalContent({ po, setShowEditPOModal, products, categories, onSave }) {
+  const [editForm, setEditForm] = useState({
+    poNumber: po.poNumber,
+    date: po.date ? new Date(po.date).toISOString().slice(0, 10) : '',
+    supplierId: po.supplierId || '',
+    supplierName: po.supplierName || '',
+    billNum: po.billNum || '',
+    items: po.items.map(item => ({
+      ...item,
+      itemCategory: item.itemCategory || item.category || '', // FIX: Map both field names
+      lockedField: '' // Not using locked fields in edit mode
+    }))
+  });
+  
+  const [saving, setSaving] = useState(false);
+
+  // Calculate costs for an item
+  const calculateItemCosts = (item) => {
+    const qty = parseFloat(item.qty) || 0;
+    const unitCost = parseFloat(item.unitCost) || 0;
+    const taxRate = parseFloat(item.taxRate) || 0;
+    
+    const costExclTax = qty * unitCost;
+    const totalTax = costExclTax * (taxRate / 100);
+    const costInclTax = unitCost * (1 + taxRate / 100);
+    const totalPrice = costExclTax + totalTax;
+    
+    return {
+      costExclTax: costExclTax,
+      totalTax: totalTax,
+      costInclTax: costInclTax,
+      totalPrice: totalPrice
+    };
+  };
+
+  // Update item field
+  const updateEditItem = (index, field, value) => {
+    const updatedItems = [...editForm.items];
+    updatedItems[index][field] = value;
+    
+    // Auto-fill when model number is selected
+    if (field === 'modelNumber' && value) {
+      const product = products.find(p => p.modelNumber === value);
+      if (product) {
+        updatedItems[index].itemName = product.itemName;
+        updatedItems[index].itemCategory = product.category || '';  // FIX: product has 'category', not 'itemCategory'
+      }
+    }
+    
+    // Auto-fill when item name is selected
+    if (field === 'itemName' && value) {
+      const product = products.find(p => p.itemName === value);
+      if (product) {
+        updatedItems[index].modelNumber = product.modelNumber;
+        updatedItems[index].itemCategory = product.category || '';  // FIX: product has 'category', not 'itemCategory'
+      }
+    }
+    
+    // Recalculate costs when qty, unitCost, or taxRate changes
+    if (['qty', 'unitCost', 'taxRate'].includes(field)) {
+      const calculated = calculateItemCosts(updatedItems[index]);
+      updatedItems[index] = { ...updatedItems[index], ...calculated };
+    }
+    
+    setEditForm({ ...editForm, items: updatedItems });
+  };
+
+  // Add new item row
+  const addEditItem = () => {
+    setEditForm({
+      ...editForm,
+      items: [...editForm.items, {
+        modelNumber: '',
+        itemName: '',
+        itemCategory: '',
+        location: '',
+        qty: 1,
+        unitCost: 0,
+        taxRate: 0,
+        costExclTax: 0,
+        totalTax: 0,
+        costInclTax: 0,
+        totalPrice: 0,
+        lockedField: ''
+      }]
+    });
+  };
+
+  // Remove item row
+  const removeEditItem = (index) => {
+    if (editForm.items.length <= 1) {
+      Swal.fire('Error!', 'At least one item is required', 'error');
+      return;
+    }
+    const updatedItems = editForm.items.filter((_, i) => i !== index);
+    setEditForm({ ...editForm, items: updatedItems });
+  };
+
+  // Calculate grand total
+  const calculateGrandTotal = () => {
+    return editForm.items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+  };
+
+  // Save edited PO
+  const handleSaveEdit = () => {
+    // Validation
+    if (!editForm.date) {
+      Swal.fire('Error!', 'Please select PO Date', 'error');
+      return;
+    }
+    
+    if (!editForm.supplierName) {
+      Swal.fire('Error!', 'Please enter Supplier Name', 'error');
+      return;
+    }
+    
+    if (!editForm.billNum) {
+      Swal.fire('Error!', 'Please enter Bill Number', 'error');
+      return;
+    }
+    
+    if (editForm.items.length === 0) {
+      Swal.fire('Error!', 'Please add at least one item', 'error');
+      return;
+    }
+    
+    // Validate each item
+    for (let i = 0; i < editForm.items.length; i++) {
+      const item = editForm.items[i];
+      if (!item.modelNumber) {
+        Swal.fire('Error!', `Item ${i + 1}: Please select Model Number`, 'error');
+        return;
+      }
+      if (!item.itemName) {
+        Swal.fire('Error!', `Item ${i + 1}: Please select Item Name`, 'error');
+        return;
+      }
+      if (!item.location) {
+        Swal.fire('Error!', `Item ${i + 1}: Please select Location`, 'error');
+        return;
+      }
+      if (!item.qty || item.qty <= 0) {
+        Swal.fire('Error!', `Item ${i + 1}: QTY must be greater than 0`, 'error');
+        return;
+      }
+      if (!item.unitCost || item.unitCost <= 0) {
+        Swal.fire('Error!', `Item ${i + 1}: Unit Cost must be greater than 0`, 'error');
+        return;
+      }
+    }
+    
+    setSaving(true);
+    
+    // Prepare data for backend
+    const poData = {
+      poNumber: editForm.poNumber,
+      date: editForm.date,
+      supplierId: editForm.supplierId,
+      supplierName: editForm.supplierName,
+      billNum: editForm.billNum,
+      items: editForm.items.map(item => ({
+        modelNumber: item.modelNumber,
+        itemName: item.itemName,
+        itemCategory: item.itemCategory || '',
+        location: item.location,
+        qty: parseFloat(item.qty),
+        unitCost: parseFloat(item.unitCost),
+        taxRate: parseFloat(item.taxRate) || 0,
+        costExclTax: parseFloat(item.costExclTax),
+        totalTax: parseFloat(item.totalTax),
+        costInclTax: parseFloat(item.costInclTax),
+        totalPrice: parseFloat(item.totalPrice)
+      }))
+    };
+    
+    google.script.run
+      .withSuccessHandler((result) => {
+        setSaving(false);
+        if (result.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: 'Purchase Order updated successfully',
+            confirmButtonColor: '#001f3f'
+          }).then(() => {
+            setShowEditPOModal(false);
+            if (onSave) onSave();
+          });
+        } else {
+          Swal.fire('Error!', result.message, 'error');
+        }
+      })
+      .withFailureHandler((error) => {
+        setSaving(false);
+        Swal.fire('Error!', 'Failed to update PO: ' + error.message, 'error');
+      })
+      .updatePurchaseOrder(poData);
+  };
+
+  return (
+    <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', overflowY: 'auto'}} onClick={() => setShowEditPOModal(false)}>
+      <div className="modal-dialog modal-xl" style={{maxWidth: '95%', marginTop: '20px', marginBottom: '20px'}} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header" style={{backgroundColor: '#001f3f', color: 'white'}}>
+            <h5 className="modal-title">
+              <i className="bi bi-pencil-square me-2"></i>
+              Edit Purchase Order: {po.poNumber}
+            </h5>
+            <button type="button" className="btn-close" style={{filter: 'brightness(0) invert(1)'}} onClick={() => setShowEditPOModal(false)} disabled={saving}></button>
+          </div>
+          
+          <div className="modal-body" style={{maxHeight: 'calc(100vh - 200px)', overflowY: 'auto'}}>
+            
+            {/* PO Header - Editable */}
+            <div style={{backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px'}}>
+              <h6 style={{color: '#001f3f', marginBottom: '15px', fontWeight: 'bold'}}>Purchase Order Details</h6>
+              <div className="row g-3">
+                <div className="col-md-3">
+                  <label className="form-label"><strong>PO Number:</strong></label>
+                  <input type="text" className="form-control" value={editForm.poNumber} disabled />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label"><strong>Date: <span style={{color: 'red'}}>*</span></strong></label>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={editForm.date}
+                    onChange={(e) => setEditForm({...editForm, date: e.target.value})}
+                    disabled={saving}
+                  />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label"><strong>Supplier Name: <span style={{color: 'red'}}>*</span></strong></label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={editForm.supplierName}
+                    onChange={(e) => setEditForm({...editForm, supplierName: e.target.value})}
+                    placeholder="Enter supplier name"
+                    disabled={saving}
+                  />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label"><strong>Bill Number: <span style={{color: 'red'}}>*</span></strong></label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={editForm.billNum}
+                    onChange={(e) => setEditForm({...editForm, billNum: e.target.value})}
+                    placeholder="Enter bill number"
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table - Editable */}
+            <div style={{marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <h6 style={{color: '#001f3f', fontWeight: 'bold', margin: 0}}>
+                Items ({editForm.items.length})
+              </h6>
+              <button 
+                className="btn btn-sm btn-success" 
+                onClick={addEditItem}
+                disabled={saving}
+              >
+                <i className="bi bi-plus-circle me-1"></i> Add Item
+              </button>
+            </div>
+            
+            <div style={{overflowX: 'auto'}}>
+              <table className="table table-bordered">
+                <thead style={{backgroundColor: '#001f3f', color: 'white', position: 'sticky', top: 0, zIndex: 10}}>
+                  <tr>
+                    <th style={{width: '40px'}}>#</th>
+                    <th style={{minWidth: '150px'}}>Model Number <span style={{color: '#ffeb3b'}}>*</span></th>
+                    <th style={{minWidth: '200px'}}>Item Name <span style={{color: '#ffeb3b'}}>*</span></th>
+                    <th style={{minWidth: '120px'}}>Category</th>
+                    <th style={{minWidth: '150px'}}>Location <span style={{color: '#ffeb3b'}}>*</span></th>
+                    <th style={{width: '80px'}}>QTY <span style={{color: '#ffeb3b'}}>*</span></th>
+                    <th style={{width: '100px'}}>Unit Cost <span style={{color: '#ffeb3b'}}>*</span></th>
+                    <th style={{width: '120px'}}>Cost Excl Tax</th>
+                    <th style={{width: '100px'}}>Tax Rate (%)</th>
+                    <th style={{width: '100px'}}>Total Tax</th>
+                    <th style={{width: '120px'}}>Cost Incl Tax</th>
+                    <th style={{width: '120px'}}>Total Price</th>
+                    <th style={{width: '60px'}}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editForm.items.map((item, index) => (
+                    <tr key={index}>
+                      <td>{index + 1}</td>
+                      
+                      {/* Model Number */}
+                      <td>
+                        <select
+                          className="form-select form-select-sm"
+                          value={item.modelNumber}
+                          onChange={(e) => updateEditItem(index, 'modelNumber', e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="">Select...</option>
+                          {products.map((prod, idx) => (
+                            <option key={idx} value={prod.modelNumber}>{prod.modelNumber}</option>
+                          ))}
+                        </select>
+                      </td>
+                      
+                      {/* Item Name */}
+                      <td>
+                        <select
+                          className="form-select form-select-sm"
+                          value={item.itemName}
+                          onChange={(e) => updateEditItem(index, 'itemName', e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="">Select...</option>
+                          {products.map((prod, idx) => (
+                            <option key={idx} value={prod.itemName}>{prod.itemName}</option>
+                          ))}
+                        </select>
+                      </td>
+                      
+                      {/* Category */}
+                      <td>
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          value={item.itemCategory || ''} 
+                          readOnly 
+                          style={{backgroundColor: '#e9ecef'}}
+                        />
+                      </td>
+                      
+                      {/* Location */}
+                      <td>
+                        <select
+                          className="form-select form-select-sm"
+                          value={item.location}
+                          onChange={(e) => updateEditItem(index, 'location', e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="">Select Location...</option>
+                          <option value="Warehouse 1">Warehouse 1</option>
+                          <option value="Warehouse 2">Warehouse 2</option>
+                          <option value="Warehouse 3">Warehouse 3</option>
+                          <option value="Warehouse 4">Warehouse 4</option>
+                          <option value="Warehouse 5">Warehouse 5</option>
+                          <option value="Warehouse 6">Warehouse 6</option>
+                          <option value="Warehouse 7">Warehouse 7</option>
+                          <option value="Warehouse 8">Warehouse 8</option>
+                          <option value="Warehouse 9">Warehouse 9</option>
+                          <option value="Warehouse 10">Warehouse 10</option>
+                        </select>
+                      </td>
+                      
+                      {/* QTY */}
+                      <td>
+                        <input 
+                          type="number" 
+                          className="form-control form-control-sm" 
+                          value={item.qty}
+                          onChange={(e) => updateEditItem(index, 'qty', e.target.value)}
+                          min="1"
+                          disabled={saving}
+                        />
+                      </td>
+                      
+                      {/* Unit Cost */}
+                      <td>
+                        <input 
+                          type="number" 
+                          className="form-control form-control-sm" 
+                          value={item.unitCost}
+                          onChange={(e) => updateEditItem(index, 'unitCost', e.target.value)}
+                          min="0"
+                          step="0.01"
+                          disabled={saving}
+                        />
+                      </td>
+                      
+                      {/* Cost Excl Tax (Auto-calculated) */}
+                      <td>
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          value={'$' + (item.costExclTax || 0).toFixed(2)} 
+                          readOnly 
+                          style={{backgroundColor: '#e9ecef'}}
+                        />
+                      </td>
+                      
+                      {/* Tax Rate */}
+                      <td>
+                        <input 
+                          type="number" 
+                          className="form-control form-control-sm" 
+                          value={item.taxRate}
+                          onChange={(e) => updateEditItem(index, 'taxRate', e.target.value)}
+                          min="0"
+                          step="0.1"
+                          disabled={saving}
+                        />
+                      </td>
+                      
+                      {/* Total Tax (Auto-calculated) */}
+                      <td>
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          value={'$' + (item.totalTax || 0).toFixed(2)} 
+                          readOnly 
+                          style={{backgroundColor: '#e9ecef'}}
+                        />
+                      </td>
+                      
+                      {/* Cost Incl Tax (Auto-calculated) */}
+                      <td>
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          value={'$' + (item.costInclTax || 0).toFixed(2)} 
+                          readOnly 
+                          style={{backgroundColor: '#e9ecef'}}
+                        />
+                      </td>
+                      
+                      {/* Total Price (Auto-calculated) */}
+                      <td>
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          value={'$' + (item.totalPrice || 0).toFixed(2)} 
+                          readOnly 
+                          style={{backgroundColor: '#e9ecef', fontWeight: 'bold'}}
+                        />
+                      </td>
+                      
+                      {/* Delete Button */}
+                      <td>
+                        <button 
+                          className="btn btn-sm btn-danger" 
+                          onClick={() => removeEditItem(index)}
+                          disabled={saving || editForm.items.length <= 1}
+                          title="Delete item"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{backgroundColor: '#f8f9fa', fontWeight: 'bold'}}>
+                    <td colSpan="11" className="text-end">Grand Total:</td>
+                    <td>$ {calculateGrandTotal().toFixed(2)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+          
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={() => setShowEditPOModal(false)} disabled={saving}>
+              Cancel
+            </button>
+            <button className="btn btn-success" onClick={handleSaveEdit} disabled={saving}>
+              {saving ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-check-circle me-2"></i>
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+    // ============================================
+    // SERVICE SELECTION MODAL COMPONENT
+    // ============================================
+    
+    function ServiceSelectionModal({ onClose, onServicesSelected }) {
+      const [allServices, setAllServices] = useState([]);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [selectedServices, setSelectedServices] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [showAddNew, setShowAddNew] = useState(false);
+      const [newServiceName, setNewServiceName] = useState('');
+      const [addingService, setAddingService] = useState(false);
+      
+      useEffect(() => {
+        loadServices();
+      }, []);
+      
+      const loadServices = () => {
+        setLoading(true);
+        google.script.run
+          .withSuccessHandler((result) => {
+            setLoading(false);
+            if (result.success) {
+              setAllServices(result.services || []);
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            setLoading(false);
+            Swal.fire('Error!', 'Failed to load services: ' + error.message, 'error');
+          })
+          .getAllServices();
+      };
+      
+      const handleSearch = () => {
+        if (!searchTerm.trim()) {
+          loadServices();
+          return;
+        }
+        
+        setLoading(true);
+        google.script.run
+          .withSuccessHandler((result) => {
+            setLoading(false);
+            if (result.success) {
+              setAllServices(result.services || []);
+            }
+          })
+          .withFailureHandler((error) => {
+            setLoading(false);
+            Swal.fire('Error!', 'Search failed: ' + error.message, 'error');
+          })
+          .searchServices(searchTerm);
+      };
+      
+      const handleAddNewService = () => {
+        if (!newServiceName.trim()) {
+          Swal.fire('Error!', 'Please enter service name', 'error');
+          return;
+        }
+        
+        setAddingService(true);
+        google.script.run
+          .withSuccessHandler((result) => {
+            setAddingService(false);
+            if (result.success) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Service Added!',
+                text: result.serviceCode + ' - ' + result.serviceName,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000
+              });
+              
+              // Add to list and select it
+              const newService = {
+                serviceCode: result.serviceCode,
+                serviceName: result.serviceName
+              };
+              setAllServices([newService, ...allServices]);
+              setSelectedServices([...selectedServices, newService]);
+              setNewServiceName('');
+              setShowAddNew(false);
+            } else {
+              Swal.fire('Error!', result.message, 'error');
+            }
+          })
+          .withFailureHandler((error) => {
+            setAddingService(false);
+            Swal.fire('Error!', 'Failed to add service: ' + error.message, 'error');
+          })
+          .addService(newServiceName.trim());
+      };
+      
+      const toggleServiceSelection = (service) => {
+        const isSelected = selectedServices.some(s => s.serviceCode === service.serviceCode);
+        if (isSelected) {
+          setSelectedServices(selectedServices.filter(s => s.serviceCode !== service.serviceCode));
+        } else {
+          setSelectedServices([...selectedServices, service]);
+        }
+      };
+      
+      const handleDone = () => {
+        if (selectedServices.length === 0) {
+          Swal.fire('Warning!', 'Please select at least one service', 'warning');
+          return;
+        }
+        onServicesSelected(selectedServices);
+      };
+      
+      const filteredServices = allServices;
+      
+      return (
+        <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}} onClick={onClose}>
+          <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header" style={{backgroundColor: '#001f3f', color: 'white'}}>
+                <h5 className="modal-title">
+                  <i className="bi bi-gear-fill me-2"></i>
+                  Select Services
+                </h5>
+                <button type="button" className="btn-close" style={{filter: 'brightness(0) invert(1)'}} onClick={onClose}></button>
+              </div>
+              
+              <div className="modal-body">
+                {/* Search Bar */}
+                <div className="row g-2 mb-3">
+                  <div className="col-9">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Search services..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSearch();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="col-3">
+                    <button className="btn btn-navy w-100" onClick={handleSearch}>
+                      <i className="bi bi-search me-1"></i> Search
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Add New Service Button */}
+                {!showAddNew && (
+                  <button 
+                    className="btn btn-success btn-sm mb-3"
+                    onClick={() => setShowAddNew(true)}
+                  >
+                    <i className="bi bi-plus-circle me-2"></i>
+                    Add New Service
+                  </button>
+                )}
+                
+                {/* Add New Service Form */}
+                {showAddNew && (
+                  <div style={{backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '15px'}}>
+                    <h6 style={{marginBottom: '10px', color: '#001f3f'}}>
+                      <i className="bi bi-plus-circle me-2"></i>
+                      Add New Service
+                    </h6>
+                    <div className="row g-2">
+                      <div className="col-9">
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter service name"
+                          value={newServiceName}
+                          onChange={(e) => setNewServiceName(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !addingService) {
+                              handleAddNewService();
+                            }
+                          }}
+                          disabled={addingService}
+                        />
+                      </div>
+                      <div className="col-3">
+                        <button 
+                          className="btn btn-success w-100"
+                          onClick={handleAddNewService}
+                          disabled={addingService}
+                        >
+                          {addingService ? 'Adding...' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+                    <button 
+                      className="btn btn-sm btn-link"
+                      onClick={() => {
+                        setShowAddNew(false);
+                        setNewServiceName('');
+                      }}
+                      disabled={addingService}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                
+                {/* Services List */}
+                {loading ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {filteredServices.length === 0 ? (
+                      <div className="text-center py-4 text-muted">
+                        <i className="bi bi-inbox" style={{fontSize: '48px', opacity: 0.3}}></i>
+                        <p className="mt-2">No services found</p>
+                      </div>
+                    ) : (
+                      <div style={{maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px'}}>
+                        <table className="table table-hover mb-0">
+                          <thead style={{position: 'sticky', top: 0, backgroundColor: '#001f3f', color: 'white', zIndex: 1}}>
+                            <tr>
+                              <th style={{width: '50px'}}>Select</th>
+                              <th>Service Code</th>
+                              <th>Service Name</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredServices.map((service, index) => {
+                              const isSelected = selectedServices.some(s => s.serviceCode === service.serviceCode);
+                              return (
+                                <tr 
+                                  key={index} 
+                                  onClick={() => toggleServiceSelection(service)}
+                                  style={{cursor: 'pointer', backgroundColor: isSelected ? '#e7f3ff' : 'white'}}
+                                >
+                                  <td className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => {}}
+                                      style={{cursor: 'pointer'}}
+                                    />
+                                  </td>
+                                  <td><strong>{service.serviceCode}</strong></td>
+                                  <td>{service.serviceName}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    
+                    {/* Selected Services Summary */}
+                    {selectedServices.length > 0 && (
+                      <div style={{marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '4px'}}>
+                        <strong style={{color: '#155724'}}>
+                          <i className="bi bi-check-circle me-2"></i>
+                          Selected: {selectedServices.length} service(s)
+                        </strong>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={onClose}>
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-success" 
+                  onClick={handleDone}
+                  disabled={selectedServices.length === 0}
+                >
+                  <i className="bi bi-check-circle me-2"></i>
+                  Add {selectedServices.length} Service(s)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // New Quote App Component  -- Fun New Quote
     function QuoteApp({ currentUser, userRole, userPermissions, hasPermission, onLogout }) {
       const [items, setItems] = useState([]); // Changed from stocks
@@ -10711,6 +12879,9 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
       const [lineItems, setLineItems] = useState([
         { itemNumber: 1, modelNumber: '', itemName: '', category: '', qty: 1, lockedField: '' } // NEW structure
       ]);
+      const [services, setServices] = useState([]); // NEW - Services array
+      const [showServiceModal, setShowServiceModal] = useState(false); // NEW - Service modal
+      const [showItemsBlock, setShowItemsBlock] = useState(false); // NEW - Show/hide items block
       const [materialCost, setMaterialCost] = useState(0); // NEW
       const [installationCost, setInstallationCost] = useState(0); // NEW
       const [salesTax, setSalesTax] = useState(0); // NEW
@@ -10813,14 +12984,19 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
       };
 
       const removeLineItem = (index) => {
-        if (lineItems.length > 1) {
-          const newItems = lineItems.filter((_, i) => i !== index);
-          // Renumber items
-          newItems.forEach((item, i) => {
-            item.itemNumber = i + 1;
-          });
-          setLineItems(newItems);
-        }
+        // Always allow delete - even if only 1 row
+        const newItems = lineItems.filter((_, i) => i !== index);
+        
+        // Renumber remaining items
+        newItems.forEach((item, i) => {
+          item.itemNumber = i + 1;
+        });
+        
+        setLineItems(newItems);
+        
+        // If no items left, optionally hide the block (user can show again with "Add Item")
+        // Uncomment next line if you want to auto-hide when all items deleted:
+        // if (newItems.length === 0) setShowItemsBlock(false);
       };
 
       const updateLineItem = (index, field, value) => {
@@ -10910,21 +13086,28 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
           return;
         }
 
-        if (lineItems.length === 0) {
-          showAlert('warning', 'Please add at least one item');
+        // NEW VALIDATION: At least Equipment OR Services is required
+        // But only count equipment if the block is visible (showItemsBlock === true)
+        const hasEquipment = showItemsBlock && lineItems.length > 0;
+        const hasServices = services.length > 0;
+        
+        if (!hasEquipment && !hasServices) {
+          showAlert('warning', 'Please add at least one Equipment item OR Service');
           return;
         }
 
-        // Validate each item has model number and qty
-        for (let i = 0; i < lineItems.length; i++) {
-          const item = lineItems[i];
-          if (!item.modelNumber || item.modelNumber.trim() === '') {
-            showAlert('warning', `Item ${i + 1}: Please select Model Number`);
-            return;
-          }
-          if (!item.qty || parseFloat(item.qty) <= 0) {
-            showAlert('warning', `Item ${i + 1}: Please enter valid QTY`);
-            return;
+        // Validate each item has model number and qty (ONLY if Equipment block is visible AND items exist)
+        if (showItemsBlock && lineItems.length > 0) {
+          for (let i = 0; i < lineItems.length; i++) {
+            const item = lineItems[i];
+            if (!item.modelNumber || item.modelNumber.trim() === '') {
+              showAlert('warning', `Item ${i + 1}: Please select Model Number`);
+              return;
+            }
+            if (!item.qty || parseFloat(item.qty) <= 0) {
+              showAlert('warning', `Item ${i + 1}: Please enter valid QTY`);
+              return;
+            }
           }
         }
 
@@ -10941,13 +13124,14 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
           customerEmail,
           preparedBy,
           objective,
-          items: lineItems,
+          items: showItemsBlock ? lineItems : [],  // Only include items if block is visible
+          services: services,
           materialCost: parseFloat(materialCost) || 0,
           installationCost: parseFloat(installationCost) || 0,
           salesTax: parseFloat(salesTax) || 0,
           downPayment: parseFloat(downPayment) || 0,
-          taxType: taxType,                          // ADD THIS
-          taxRate: parseFloat(taxRate) || 0,         // ADD THIS
+          taxType: taxType,
+          taxRate: parseFloat(taxRate) || 0,
           terms: 'Payment due within 30 days'
         };
 
@@ -10990,6 +13174,8 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
         setCustomerEmail('');
         setObjective('');
         setLineItems([{ itemNumber: 1, modelNumber: '', itemName: '', category: '', qty: 1, lockedField: '' }]);
+        setServices([]);  // NEW - Reset services
+        setShowItemsBlock(false);  // NEW - Hide items block
         setMaterialCost(0);
         setInstallationCost(0);
         setSalesTax(0);
@@ -11145,6 +13331,16 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                   <span>User Management</span>
                 </div>
               )}
+              
+              {/* Services Menu Item */}
+              <div
+                className={`sidebar-menu-item ${activeMenu === 'services' ? 'active' : ''}`}
+                onClick={() => { setActiveMenu('services'); setMobileMenuOpen(false); }}
+                data-title="Services"
+              >
+                <i className="bi bi-gear-fill"></i>
+                <span>Services</span>
+              </div>
             </div>
 
             <div className="sidebar-footer">
@@ -11310,22 +13506,34 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                   </div>
                 </div>
 
-                {/* OBJECTIVE SECTION - NEW */}
+                {/* OBJECTIVE SECTION - NOW WITH RICH TEXT EDITOR */}
                 <div className="section-header">OBJECTIVE</div>
                 <div className="mb-4">
-                  <textarea
-                    className="form-control"
-                    rows="4"
-                    placeholder="Enter project objective and description..."
+                  <RichTextEditor
                     value={objective}
-                    onChange={(e) => setObjective(e.target.value)}
-                    style={{fontSize: '14px', lineHeight: '1.6', resize: 'vertical'}}
+                    onChange={setObjective}
+                    placeholder="Enter project objective and description..."
                   />
                 </div>
 
-                {/* Equipment Items */}
-                <div className="section-header">Equipment</div>
-                <table className="items-table">
+                {/* Equipment Section - NOW WITH ADD BUTTON */}
+                <div className="section-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <span>EQUIPMENT</span>
+                  {!showItemsBlock && (
+                    <button 
+                      type="button"
+                      className="btn btn-success btn-sm"
+                      onClick={() => setShowItemsBlock(true)}
+                    >
+                      <i className="bi bi-plus-circle me-2"></i>
+                      Add Item
+                    </button>
+                  )}
+                </div>
+                
+                {showItemsBlock && (
+                  <>
+                    <table className="items-table">
                   <thead>
                     <tr>
                       <th style={{width: '2%', textAlign: 'center'}}>Item</th>
@@ -11401,15 +13609,13 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                           />
                         </td>
                         <td className="no-print" style={{textAlign: 'center'}}>
-                          {lineItems.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
-                              onClick={() => removeLineItem(index)}
-                            >
-                              <i className="bi bi-trash"></i>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            onClick={() => removeLineItem(index)}
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -11423,6 +13629,54 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                   <i className="bi bi-plus-circle me-1"></i>
                   Add Line Item
                 </button>
+                  </>
+                )}
+
+                {/* SERVICE SECTION - NEW */}
+                <div className="section-header" style={{marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <span>SERVICES</span>
+                  <button 
+                    type="button"
+                    className="btn btn-success btn-sm"
+                    onClick={() => setShowServiceModal(true)}
+                  >
+                    <i className="bi bi-plus-circle me-2"></i>
+                    Add Service
+                  </button>
+                </div>
+                
+                {services.length > 0 && (
+                  <table className="items-table" style={{marginTop: '15px'}}>
+                    <thead>
+                      <tr>
+                        <th style={{width: '30%'}}>Service Code</th>
+                        <th style={{width: '60%'}}>Service Name</th>
+                        <th style={{width: '10%'}} className="no-print">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {services.map((service, index) => (
+                        <tr key={index}>
+                          <td><strong>{service.serviceCode}</strong></td>
+                          <td>{service.serviceName}</td>
+                          <td className="no-print">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              onClick={() => {
+                                const newServices = services.filter((_, i) => i !== index);
+                                setServices(newServices);
+                              }}
+                              title="Remove service"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
                 {/* Totals Section */}
                 <div className="totals-section" style={{marginTop: '2rem', display: 'flex', justifyContent: 'flex-end'}}>
@@ -11608,6 +13862,17 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
                 </div>
               </div>
             </div>
+            
+            {/* SERVICE SELECTION MODAL */}
+            {showServiceModal && (
+              <ServiceSelectionModal
+                onClose={() => setShowServiceModal(false)}
+                onServicesSelected={(selectedServices) => {
+                  setServices([...services, ...selectedServices]);
+                  setShowServiceModal(false);
+                }}
+              />
+            )}
               </>
             )}
 
@@ -11650,6 +13915,11 @@ function ViewPOModalContent({ po, setShowViewPOModal }) {
             {/* User Management View */}
             {activeMenu === 'users' && isAdmin && (
               <UsersView />
+            )}
+            
+            {/* Services View */}
+            {activeMenu === 'services' && (
+              <ServicesView />
             )}
 
             {/* Dashboard View */}

@@ -49,11 +49,11 @@ function createEmailBody(data) {
   html += '<p>Dear ' + data.customerName + ',</p>';
   html += '<p>Please find your ' + type + ' details below:</p>';
   
-  // Show objective if present
+  // Show objective if present - NOW SUPPORTS HTML
   if (data.objective) {
     html += '<div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 4px solid #001f3f;">';
     html += '<h3 style="margin: 0 0 10px 0;">Project Objective</h3>';
-    html += '<p style="margin: 0;">' + data.objective + '</p>';
+    html += '<div style="margin: 0;">' + data.objective + '</div>';
     html += '</div>';
   }
   
@@ -80,6 +80,31 @@ function createEmailBody(data) {
   
   html += '</tbody>';
   html += '</table>';
+  
+  // Services Table (NEW)
+  var services = data.services || [];
+  if (services.length > 0) {
+    html += '<h3 style="color: #001f3f; margin: 30px 0 10px 0;">Services</h3>';
+    html += '<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">';
+    html += '<thead>';
+    html += '<tr style="background: #001f3f; color: white;">';
+    html += '<th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Service Code</th>';
+    html += '<th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Service Name</th>';
+    html += '</tr>';
+    html += '</thead>';
+    html += '<tbody>';
+    
+    for (var j = 0; j < services.length; j++) {
+      var service = services[j];
+      html += '<tr style="border-bottom: 1px solid #ddd;">';
+      html += '<td style="padding: 10px; border: 1px solid #ddd;"><strong>' + (service.serviceCode || '') + '</strong></td>';
+      html += '<td style="padding: 10px; border: 1px solid #ddd;">' + (service.serviceName || '') + '</td>';
+      html += '</tr>';
+    }
+    
+    html += '</tbody>';
+    html += '</table>';
+  }
   
   html += '<div style="text-align: right; padding: 20px; background: #f5f5f5; border-radius: 5px; margin-top: 20px;">';
   

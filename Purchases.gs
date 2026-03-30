@@ -372,6 +372,125 @@ function savePurchaseOrder(poData) {
 }
 
 // ========================================
+// UPDATE PURCHASE ORDER (EDIT EXISTING PO)
+// ========================================
+
+function updatePurchaseOrder(poData) {
+  try {
+    var ss = getSpreadsheet();
+    var entrySheet = ss.getSheetByName('PurchaseEntry');
+    var detailSheet = ss.getSheetByName('DetailPO');
+    
+    if (!entrySheet || !detailSheet) {
+      return {success: false, message: 'Required sheets not found'};
+    }
+    
+    // Validate required fields
+    if (!poData.date || !poData.poNumber || !poData.supplierName || !poData.billNum) {
+      return {success: false, message: 'Missing required fields: Date, PO Number, Supplier Name, Bill Number'};
+    }
+    
+    if (!poData.items || poData.items.length === 0) {
+      return {success: false, message: 'At least one item is required'};
+    }
+    
+    // Validate each item has location
+    for (var i = 0; i < poData.items.length; i++) {
+      if (!poData.items[i].location || poData.items[i].location.trim() === '') {
+        return {success: false, message: 'Item ' + (i + 1) + ': Please select Location (Warehouse)'};
+      }
+    }
+    
+    // STEP 1: Update PurchaseEntry sheet
+    var entryData = entrySheet.getDataRange().getValues();
+    var entryRowIndex = -1;
+    
+    for (var j = 1; j < entryData.length; j++) {
+      if (entryData[j][1] && entryData[j][1].toString() === poData.poNumber) {
+        entryRowIndex = j + 1; // +1 because sheet rows are 1-indexed
+        break;
+      }
+    }
+    
+    if (entryRowIndex === -1) {
+      return {success: false, message: 'PO not found in PurchaseEntry sheet'};
+    }
+    
+    // Calculate new totals
+    var itemCount = poData.items.length;
+    var totalAmount = 0;
+    for (var k = 0; k < poData.items.length; k++) {
+      totalAmount += parseFloat(poData.items[k].totalPrice) || 0;
+    }
+    
+    // Update PurchaseEntry row
+    entrySheet.getRange(entryRowIndex, 1, 1, 7).setValues([[
+      poData.date,
+      poData.poNumber,
+      poData.supplierId || '',
+      poData.supplierName,
+      poData.billNum,
+      itemCount,
+      totalAmount
+    ]]);
+    
+    // STEP 2: Delete old DetailPO rows for this PO
+    var detailData = detailSheet.getDataRange().getValues();
+    var rowsToDelete = [];
+    
+    for (var m = detailData.length - 1; m >= 1; m--) {
+      if (detailData[m][1] && detailData[m][1].toString() === poData.poNumber) {
+        rowsToDelete.push(m + 1); // +1 for 1-indexed rows
+      }
+    }
+    
+    // Delete rows from bottom to top (to avoid index shifting)
+    for (var n = 0; n < rowsToDelete.length; n++) {
+      detailSheet.deleteRow(rowsToDelete[n]);
+    }
+    
+    // STEP 3: Add new DetailPO rows
+    for (var p = 0; p < poData.items.length; p++) {
+      var item = poData.items[p];
+      var detailId = getNextDetailId();
+      
+      var detailRow = [
+        poData.date,
+        poData.poNumber,
+        detailId,
+        poData.supplierId || '',
+        poData.supplierName,
+        poData.billNum,
+        item.modelNumber,
+        item.itemName,
+        item.itemCategory || '',  // ← CATEGORY HERE
+        item.location,
+        parseFloat(item.qty) || 0,
+        parseFloat(item.unitCost) || 0,
+        parseFloat(item.costExclTax) || 0,
+        parseFloat(item.taxRate) || 0,
+        parseFloat(item.totalTax) || 0,
+        parseFloat(item.costInclTax) || 0,
+        parseFloat(item.totalPrice) || 0
+      ];
+      detailSheet.appendRow(detailRow);
+    }
+    
+    Logger.log('✅ Updated PO: ' + poData.poNumber);
+    
+    return {
+      success: true,
+      message: 'Purchase order updated successfully',
+      poNumber: poData.poNumber
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error in updatePurchaseOrder: ' + error);
+    return {success: false, message: 'Error: ' + error.toString()};
+  }
+}
+
+// ========================================
 // GET PO DETAILS
 // ========================================
 

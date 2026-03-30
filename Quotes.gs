@@ -45,6 +45,9 @@ function saveQuote(quoteData) {
 
     // Convert items array to JSON
     var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems);
+    
+    // Convert services array to JSON (NEW)
+    var servicesJSON = JSON.stringify(quoteData.services || []);
 
     // Get tax values
     var taxType = quoteData.taxType || 'Percentage';
@@ -79,7 +82,7 @@ function saveQuote(quoteData) {
       quoteData.customerCity || '',          // H: City
       quoteData.customerPhone || '',         // I: Phone
       quoteData.customerEmail || '',         // J: Email
-      quoteData.objective || '',             // K: Objective
+      quoteData.objective || '',             // K: Objective (NOW SUPPORTS HTML)
       itemsJSON,                             // L: Items JSON
       materialCost,                          // M: Material Cost
       installationCost,                      // N: Installation Cost
@@ -92,8 +95,9 @@ function saveQuote(quoteData) {
       quoteData.terms || 'Payment due within 30 days', // U: Terms
       createdAt,                             // V: Created At
       quoteData.status || 'Pending',         // W: Status
-      taxType,                               // X: Tax Type (NEW)
-      taxRate                                // Y: Tax Rate (NEW)
+      taxType,                               // X: Tax Type
+      taxRate,                               // Y: Tax Rate
+      servicesJSON                           // Z: Services JSON (NEW)
     ];
 
     quotesSheet.appendRow(rowData);
@@ -144,6 +148,10 @@ function updateQuote(quoteData) {
     // Convert items array to JSON
     var itemsJSON = JSON.stringify(quoteData.items || quoteData.lineItems || []);
     Logger.log('Items JSON: ' + itemsJSON);
+    
+    // Convert services array to JSON (NEW)
+    var servicesJSON = JSON.stringify(quoteData.services || []);
+    Logger.log('Services JSON: ' + servicesJSON);
 
     // Get tax values
     var taxType = quoteData.taxType || 'Percentage';
@@ -196,8 +204,9 @@ function updateQuote(quoteData) {
       quoteData.terms || 'Payment due within 30 days', // U: Terms
       originalRow[21],                       // V: Keep original Created At
       originalRow[22],                       // W: Keep original Status
-      taxType,                               // X: Tax Type (NEW)
-      taxRate                                // Y: Tax Rate (NEW)
+      taxType,                               // X: Tax Type
+      taxRate,                               // Y: Tax Rate
+      servicesJSON                           // Z: Services JSON (NEW)
     ];
 
     quotesSheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
@@ -241,6 +250,16 @@ function getQuotes() {
         } catch (e) {
           items = [];
         }
+        
+        // Parse services JSON (NEW)
+        var services = [];
+        try {
+          if (row[25]) {  // Column Z (index 25)
+            services = JSON.parse(String(row[25]));
+          }
+        } catch (e) {
+          services = [];
+        }
 
         quotes.push({
           quoteNumber: String(row[0]),
@@ -267,7 +286,8 @@ function getQuotes() {
           createdAt: row[21] ? String(row[21]) : '',
           status: String(row[22] || 'Pending'),
           taxType: String(row[23] || 'Percentage'),  // NEW - default to Percentage
-          taxRate: parseFloat(row[24]) || 0          // NEW - default to 0
+          taxRate: parseFloat(row[24]) || 0,         // NEW - default to 0
+          services: services                         // NEW - Services array
         });
       }
     }
@@ -345,72 +365,6 @@ function deleteQuote(quoteNumber) {
     return {success: false, message: 'Quote not found'};
   } catch (error) {
     return {success: false, message: 'Error: ' + error.toString()};
-  }
-}
-
-// Generate PDF for quote
-function generateQuotePDF(quoteNumber) {
-  try {
-    var result = getQuoteByNumber(quoteNumber);
-    if (!result.success) {
-      return result;
-    }
-
-    var quote = result.quote;
-    
-    // Create HTML content for PDF
-    var html = '<html><body style="font-family: Arial, sans-serif;">';
-    html += '<h1>QUOTATION</h1>';
-    html += '<p><strong>Quote #:</strong> ' + quote.quoteNumber + '</p>';
-    html += '<p><strong>Date:</strong> ' + new Date(quote.date).toLocaleDateString() + '</p>';
-    html += '<p><strong>Customer:</strong> ' + quote.customerName + '</p>';
-    html += '<p><strong>Company:</strong> ' + quote.customerCompany + '</p>';
-    
-    if (quote.objective) {
-      html += '<h3>Objective</h3>';
-      html += '<p>' + quote.objective + '</p>';
-    }
-    
-    html += '<h3>Items</h3>';
-    html += '<table border="1" cellpadding="5" style="border-collapse: collapse; width: 100%;">';
-    html += '<tr><th>Item</th><th>Model Number</th><th>Item Name</th><th>Category</th><th>QTY</th></tr>';
-    
-    for (var i = 0; i < quote.items.length; i++) {
-      var item = quote.items[i];
-      html += '<tr>';
-      html += '<td>' + (i + 1) + '</td>';
-      html += '<td>' + (item.modelNumber || '') + '</td>';
-      html += '<td>' + (item.itemName || '') + '</td>';
-      html += '<td>' + (item.category || '') + '</td>';
-      html += '<td>' + (item.qty || '') + '</td>';
-      html += '</tr>';
-    }
-    
-    html += '</table>';
-    
-    html += '<h3>Totals</h3>';
-    html += '<p><strong>Material Cost:</strong> $' + quote.materialCost.toFixed(2) + '</p>';
-    html += '<p><strong>Installation & Training:</strong> $' + quote.installationCost.toFixed(2) + '</p>';
-    html += '<p><strong>Sub Total:</strong> $' + quote.subTotal.toFixed(2) + '</p>';
-    html += '<p><strong>Sales Tax:</strong> $' + quote.salesTax.toFixed(2) + '</p>';
-    html += '<p><strong>Grand Total:</strong> $' + quote.grandTotal.toFixed(2) + '</p>';
-    html += '<h4>Payment Schedule</h4>';
-    html += '<p><strong>Down Payment:</strong> $' + quote.downPayment.toFixed(2) + '</p>';
-    html += '<p><strong>Final Payment:</strong> $' + quote.finalPayment.toFixed(2) + '</p>';
-    
-    html += '</body></html>';
-    
-    // Create PDF blob
-    var blob = Utilities.newBlob(html, 'text/html', 'quote.html');
-    var pdf = blob.getAs('application/pdf');
-    
-    return {
-      success: true,
-      pdf: Utilities.base64Encode(pdf.getBytes()),
-      filename: 'Quote_' + quote.quoteNumber + '.pdf'
-    };
-  } catch (error) {
-    return {success: false, message: 'Error generating PDF: ' + error.toString()};
   }
 }
 

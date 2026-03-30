@@ -1,3 +1,193 @@
+=========================================== New Quote page (Add Services) ==================================================
+So, okay now when create service page we have service database, and add service button. 
+READ CAREFULLY FROM HERE:
+HERE ONE OF MAJOR UPDATE I WANT TO DO and that is, whole page construction can change,
+So, on new quote page till the Customers everything is fine but after customer block there is a block call objective.
+1. 
+"Try to save proper way objective " 
+What does this task meaning?
+I want to update something on objective block, 
+I want to write porper maner way, means like step 1 step2 
+And we write in a poper document, proper project details, like in word document how we write parapgatph, bullet point, number point, under line, italic, bold and many other thing that we can do on word document.
+
+and also this objective is currently like, we have to scratch manually, to big and small text box,
+i want to write perfect way and also save means when i do pdf that also in perfect quotation and invoice proper way, 
+Like professional, big corporate how they write and send that document that's way.
+
+2. we have block of "Equipment" and below there is a row where we can enter modal number or item name it's suggest and we select and automatically category field fill and then we enter qty, and also there is a logic where enter modal number then item name cloumn is read only, no one can edit, and same opposite way if item name enter then modal number read mode only view only. this logic.
+
+What i want to do here is, i want to as admin come to new quote there is a button call "Add item" if he click on this button then only row will appear other wise nothing so admin want to add then he add or else nothing he can add service, from "Equipment" and "service" block from both he need to choose one compulsory, he can choose one or both, but one is compulsory.
+
+3. now we need to add "add service" button block on new quote page.
+let's think like, we need to put button below "Add line Item" button.
+So as we decided, button place, if admin/user click on this button one pop-up modal need to open, where he can search and select and add services. 
+
+If already they have service in the database then admin search and slect the service but if he will not find then he can add from this pop-up modal, and if he add service the data should be store in service google sheet.
+
+now when admin click on close pop up modal, then similar to Equipment block and item row there should be Service block and service row should be visible,
+
+For now this is the thing, but we need to change a lot of thing in quote and invoice google sheet, because we are adding two column and also need to add in many other pages.
+
+Do you understand what i meant here? and what i want to do?
+understand and analysis my requirment and then tell me shortest summary what you understood? Don't do code right now, first we finalise what we have to do and then do code.
+
+=============================================================== Quote Button ==================================================
+
+So, on your work, i want to tell you have done good work, but
+1. As i told you if i click add item button and if row is visible then it should give me this message "Item 1: Please select Model Number" but with your code you gave me, it's giving me i have not click on add item button means there is no row visible still getting this message. Look don't miss understand, if i click add item button then working fine, but currently what happeing that told you.
+2. when i click add item row is visible but if i want to delete then there is no option because i had set that if there is 1 row so on delete button that logic we need to change, now logic will be click on add item button, row visible and also admin can delete. if item i don't want to add i just want to add service then also fine, you can just add services and you are good to create quote,
+
+3. you have changed whole quote pdf formate, you just need to add serice block not need to change whole quote structure.
+
+Now, as we have data as we compelted new quote page, we need to organize data so, i want to orgnize this Quote google sheet, only meaning full thing want to add and other thing delete,
+
+=============================================================== Invoice EDIT Button ==================================================
+So, okay i want to start with one major update, 
+i want to built edit button in Invoice page on action column with other buttons.
+As you analysis you know we have view modal in invoice page. with same modal but i want to edit features, 
+So if admin wants to edit his invoice he can edit,
+what he can edit, items he can add items
+
+
+
+
+
+=============================================================== Services ===============================================================
+So, I want to create a new page call services, on this page we have on top means same margin and same layout that current system has that layout, on top there will be a name "Services" opposite side this name i need a button "Add Service" 
+so now what is in this button of "Add Service", when user open he can add one or multiple service, 
+two column one is service code and other one is service name.
+So, user enter service name first and then click add 
+autgenrated service code(read only) and service name come below, once he added this service 
+ then he can add more or close pop add service pop up modal.
+
+and when he close, that table come to see as other page has
+on table two things, service code and service name 
+then after this i want a search bar where we can search our services using services name or code.
+
+after serach bar, table card that shows services.
+
+You need to create backend(new file need to create), frontend(update/add in index.html) and datbase google sheet(new)
+
+Do you understand what i meant here? and what i want to do?
+understand and analysis my requirment and then tell me shortest summary what you understood? Don't do code right now, first we finalise what we have to do and then do code.
+
+=============================================================== add column in quote and invoice ============================================
+
+we need to analysis our database sheet, because at end there are lot of miss managed sheet. means on rate type column our service is written, other row write something else.
+
+We need to organize database sheet. because we did not add new columns in quote sheet and invoice sheet. 
+
+
+=============================================================== Purchase edit button - Done ============================================
+So, let's start with purchase page, on this page currently we have one table and in this table we have one column name action on this column we have two buttons, view and delete.
+Using View we can check whole purchase order details.
+but now my manager told me if i did mistaklly wrote down something else now if i want to edit then what should i do?
+For that he told me implement edit buttton.
+where i can edit 
+Supplier Name
+Bill Number
+PO Date 
+Model Number *
+Item Name *	
+Category	Location *	
+QTY *	
+Unit Cost *	
+Cost Excl Tax	
+Tax Rate (%)	
+Total Tax	
+Cost Incl Tax	
+Total Price
+
+this all field, also i can delete or add new column as well.
+
+Do you understand what i meant here? and what i want to do?
+understand and analysis my requirment and then tell me shortest summary what you understood? Don't do code right now, first we finalise what we have to do and then do code.
+
+=============================================================== Weekday/weekend button ============================================
+ANALYZING My REQUIREMENT
+
+CURRENT FLOW:
+User marks quote as "Completed" ✅
+
+User clicks "Create Invoice" button ✅
+
+Pop-up shows: "Yes, create invoice!" or "Cancel" ✅
+
+NEW REQUIREMENT - ADD EXTRA STEP:
+STEP 1: After clicking "Yes, create invoice!" → NEW MODAL OPENS with 3 fields:
+Field Name Type Position
+1. Rate TypeDropdown (Weekend/Weekday)Left side1. Rate PriceNumber inputRight side (beside dropdown)2. Driving HoursLabelLeft side2. Driving PriceNumber inputRight side3. On-Site HoursLabelLeft side3. On-Site PriceNumber inputRight side
+
+STEP 2: User fills in all 3 fields (required, can be 0 or any number)
+
+STEP 3: Two buttons at bottom:
+"Confirm, Create Invoice" ✅
+"Close" ❌
+
+STEP 4: When "Confirm, Create Invoice" clicked:
+
+Create the invoice WITH these 3 additional charges
+Store these values in Google Sheets
+
+
+
+💰 WHERE TO SHOW THESE CHARGES:
+Location 1: Invoice Calculation (below Sales Tax)
+Current invoice structure:
+Material Cost:     $1000
+Installation Cost: $500
+--------------------------
+Sub Total:         $1500
+Sales Tax:         $150
+--------------------------
+GRAND TOTAL:       $1650
+
+NEW structure with your 3 fields:
+
+Material Cost:        $1000
+Installation Cost:    $500
+--------------------------
+Sub Total:            $1500
+Sales Tax:            $150
+--------------------------
+Weekend Rate:         $100  ← NEW
+Driving Hours:        $50   ← NEW
+On-Site Hours:        $75   ← NEW
+--------------------------
+GRAND TOTAL:          $1775 ← UPDATED
+
+Location 2: PDF Generated Invoice
+Same 3 fields show on printed/PDF invoice
+
+Location 3: View Invoice Modal
+Same 3 fields show when viewing invoice details
+
+
+
+📊 GOOGLE SHEETS CHANGES:
+NEW Columns to ADD:
+Important: Don't disturb existing columns, just add at the end!
+
+### ** DATA FLOW:** 
+1. Quote #123 marked as "Completed" 
+2. 2. User clicks "Create Invoice" 
+3. 3. **NEW MODAL** asks for 3 charges 
+4. 4. User enters values 
+5. 5. Clicks "Confirm, Create Invoice" 
+6. 6. Backend creates invoice with these 3 extra charges 
+7. 7. Stores in Invoices sheet columns at the end 
+8. 8. Shows on invoice view/PDF with updated GRAND TOTAL
+
+
+
+=============================================================== 100% correct ============================================
+
+100% correct. now you have all files, you need to take this file and update the code, if you want to breake down and you want to do in step by step we can do that also. as you want to do you can start. you have take care of three things, frontend, backend and database google sheet.
+
+Take your time analysis and then start.
+
+=============================================================== Purchase edit button ============================================
+
 I think insted of doing all this thing merge or replace, 
 what we can do is, create the code in index.html and stocks.gs file.
 

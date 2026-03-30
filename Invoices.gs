@@ -289,7 +289,7 @@ function updateStockQuantity(lineItems, operation) {
 }
 
 // Create invoice from completed quote
-function createInvoiceFromQuote(quoteNumber) {
+function createInvoiceFromQuote(quoteNumber, additionalCharges) {
   try {
     var ss = getSpreadsheet();
     var quotesSheet = ss.getSheetByName('Quotes');
@@ -334,12 +334,33 @@ function createInvoiceFromQuote(quoteNumber) {
     } catch (e) {
       return {success: false, message: 'Error parsing quote line items: ' + e.toString()};
     }
+    
+    // NEW: Parse services from quote (Column Z - index 25)
+    var services = [];
+    try {
+      if (quoteRow[25]) {
+        services = JSON.parse(quoteRow[25]); // Column Z - Services JSON
+      }
+    } catch (e) {
+      Logger.log('⚠️ Warning: Error parsing services: ' + e.toString());
+      services = []; // Default to empty array if parsing fails
+    }
 
     // Generate invoice number
     var invoiceNumber = getNextInvoiceNumber();
     var createdAt = new Date().toISOString();
     var dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
+    
+    // NEW: Parse additional charges (default to 0 if not provided)
+    var rateType = (additionalCharges && additionalCharges.rateType) || '';
+    var ratePrice = parseFloat((additionalCharges && additionalCharges.ratePrice) || 0);
+    var drivingHoursPrice = parseFloat((additionalCharges && additionalCharges.drivingHoursPrice) || 0);
+    var onSiteHoursPrice = parseFloat((additionalCharges && additionalCharges.onSiteHoursPrice) || 0);
+    
+    // NEW: Calculate updated Grand Total
+    var originalGrandTotal = parseFloat(quoteRow[16]) || 0;
+    var updatedGrandTotal = originalGrandTotal + ratePrice + drivingHoursPrice + onSiteHoursPrice;
 
     // Map NEW quote structure to invoice (adjust columns based on new structure)
     var rowData = [
@@ -358,7 +379,7 @@ function createInvoiceFromQuote(quoteNumber) {
       quoteRow[13],               // M: Installation Cost (N from quotes)
       quoteRow[14],               // N: Sub Total (O from quotes)
       quoteRow[15],               // O: Sales Tax (P from quotes)
-      quoteRow[16],               // P: Grand Total (Q from quotes)
+      updatedGrandTotal,          // P: Grand Total (UPDATED with additional charges)
       quoteRow[17],               // Q: Down Payment (R from quotes)
       quoteRow[18],               // R: Final Payment (S from quotes)
       quoteRow[19],               // S: Prepared By (T from quotes)
@@ -366,7 +387,12 @@ function createInvoiceFromQuote(quoteNumber) {
       'Payment due within 30 days', // U: Terms
       createdAt,                  // V: Created timestamp
       'Unpaid',                   // W: Status
-      quoteNumber                 // X: Quote Number
+      quoteNumber,                // X: Quote Number
+      rateType,                   // Y: Rate Type - NEW
+      ratePrice,                  // Z: Rate Price - NEW
+      drivingHoursPrice,          // AA: Driving Hours Price - NEW
+      onSiteHoursPrice,           // AB: On-Site Hours Price - NEW
+      JSON.stringify(services)    // AC: Services (JSON) - NEW
     ];
 
     invoicesSheet.appendRow(rowData);
@@ -415,6 +441,15 @@ function getInvoices() {
           Logger.log('Error parsing lineItems for invoice ' + row[0] + ': ' + e.toString());
           lineItems = [];
         }
+        
+        // NEW: Parse services
+        var services = [];
+        try {
+          services = row[28] ? JSON.parse(row[28]) : [];
+        } catch (e) {
+          Logger.log('Error parsing services for invoice ' + row[0] + ': ' + e.toString());
+          services = [];
+        }
 
         invoices.push({
           invoiceNumber: row[0],
@@ -440,7 +475,12 @@ function getInvoices() {
           terms: row[20],
           createdAt: row[21],
           status: row[22],
-          quoteNumber: row[23]
+          quoteNumber: row[23],
+          rateType: row[24] || '',                      // Additional charges
+          ratePrice: parseFloat(row[25]) || 0,          // Additional charges
+          drivingHoursPrice: parseFloat(row[26]) || 0,  // Additional charges
+          onSiteHoursPrice: parseFloat(row[27]) || 0,   // Additional charges
+          services: services                             // NEW - Services array
         });
       }
     }
@@ -600,9 +640,26 @@ function createManualInvoice(invoiceData) {
       return {success: false, message: 'Invalid line items format: ' + e.toString()};
     }
     
+    // NEW: Parse services
+    var services = [];
+    try {
+      services = typeof invoiceData.services === 'string'
+        ? JSON.parse(invoiceData.services)
+        : (invoiceData.services || []);
+    } catch (e) {
+      Logger.log('⚠️ Warning: Error parsing services: ' + e.toString());
+      services = [];
+    }
+    
     // Get tax values
     var taxType = invoiceData.taxType || 'Percentage';
     var taxRate = parseFloat(invoiceData.taxRate) || 0;
+    
+    // NEW: Get additional charges
+    var rateType = invoiceData.rateType || '';
+    var ratePrice = parseFloat(invoiceData.ratePrice) || 0;
+    var drivingHoursPrice = parseFloat(invoiceData.drivingHoursPrice) || 0;
+    var onSiteHoursPrice = parseFloat(invoiceData.onSiteHoursPrice) || 0;
     
     // Calculate totals
     var materialCost = parseFloat(invoiceData.materialCost) || 0;
@@ -619,12 +676,13 @@ function createManualInvoice(invoiceData) {
       salesTax = subTotal * (taxRate / 100);
     }
     
-    var grandTotal = subTotal + salesTax;
+    // NEW: Add additional charges to grand total
+    var grandTotal = subTotal + salesTax + ratePrice + drivingHoursPrice + onSiteHoursPrice;
     var finalPayment = grandTotal - downPayment;
     
     Logger.log('Tax Calculation: Type=' + taxType + ', Rate=' + taxRate + '%, Tax=$' + salesTax);
     
-    // Invoices sheet structure (NOW 26 COLUMNS with Tax Type & Rate):
+    // Invoices sheet structure (NOW 29 COLUMNS with additional charges + services):
     var rowData = [
       invoiceNumber,                              // A: Invoice Number
       createdAt,                                  // B: Created At
@@ -641,7 +699,7 @@ function createManualInvoice(invoiceData) {
       installationCost,                           // M: Installation Cost
       subTotal,                                   // N: Sub Total
       salesTax,                                   // O: Sales Tax (calculated)
-      grandTotal,                                 // P: Grand Total
+      grandTotal,                                 // P: Grand Total (UPDATED with additional charges)
       downPayment,                                // Q: Down Payment
       finalPayment,                               // R: Final Payment
       String(invoiceData.preparedBy || 'admin'),  // S: Prepared By
@@ -650,8 +708,11 @@ function createManualInvoice(invoiceData) {
       createdAt,                                  // V: Created timestamp
       'Unpaid',                                   // W: Status
       'MANUAL',                                   // X: Quote Number (MANUAL for manual invoices)
-      taxType,                                    // Y: Tax Type (NEW)
-      taxRate                                     // Z: Tax Rate (NEW)
+      rateType,                                   // Y: Rate Type - NEW
+      ratePrice,                                  // Z: Rate Price - NEW
+      drivingHoursPrice,                          // AA: Driving Hours Price - NEW
+      onSiteHoursPrice,                           // AB: On-Site Hours Price - NEW
+      JSON.stringify(services)                    // AC: Services (JSON) - NEW
     ];
     
     invoicesSheet.appendRow(rowData);
@@ -799,7 +860,7 @@ function setupInvoicesSheet() {
       Logger.log('📄 Invoices sheet found, will update headers');
     }
     
-    // Define all column headers (24 columns: A-X)
+    // Define all column headers (29 columns: A-AC) - UPDATED from 28 to 29
     var headers = [
       'Invoice Number',        // A (Column 0)
       'Date',                  // B (Column 1)
@@ -824,7 +885,12 @@ function setupInvoicesSheet() {
       'Terms',                 // U (Column 20)
       'Created At',            // V (Column 21)
       'Status',                // W (Column 22)
-      'Quote Number'           // X (Column 23)
+      'Quote Number',          // X (Column 23)
+      'Rate Type',             // Y (Column 24) - Weekend/Weekday
+      'Rate Price',            // Z (Column 25) - Rate amount
+      'Driving Hours Price',   // AA (Column 26) - Driving hours charge
+      'On-Site Hours Price',   // AB (Column 27) - On-site hours charge
+      'Services (JSON)'        // AC (Column 28) - NEW: Services data
     ];
     
     // Set headers in row 1
@@ -863,6 +929,11 @@ function setupInvoicesSheet() {
     sheet.setColumnWidth(22, 150); // Created At
     sheet.setColumnWidth(23, 100); // Status
     sheet.setColumnWidth(24, 120); // Quote Number
+    sheet.setColumnWidth(25, 120); // Rate Type - NEW
+    sheet.setColumnWidth(26, 100); // Rate Price - NEW
+    sheet.setColumnWidth(27, 130); // Driving Hours Price - NEW
+    sheet.setColumnWidth(28, 130); // On-Site Hours Price - NEW
+    sheet.setColumnWidth(29, 250); // Services (JSON) - NEW
     
     // Freeze header row
     sheet.setFrozenRows(1);

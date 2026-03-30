@@ -135,7 +135,7 @@ function createPDFHTML(data, type) {
   if (data.objective && data.objective.trim() !== '') {
     html += '<div class="objective-box">';
     html += '<h3>PROJECT OBJECTIVE</h3>';
-    html += '<p>' + data.objective + '</p>';
+    html += '<div style="font-size: 12px; line-height: 1.6;">' + data.objective + '</div>';
     html += '</div>';
   }
 
@@ -165,6 +165,33 @@ function createPDFHTML(data, type) {
 
   html += '</tbody></table>';
 
+  // ============================================
+  // SERVICES SECTION - NEW (ONLY ADDITION)
+  // ============================================
+  var services = data.services || [];
+  if (services.length > 0) {
+    html += '<div class="section-header" style="margin-top: 30px;">SERVICES</div>';
+    html += '<table class="items">';
+    html += '<thead><tr>';
+    html += '<th>SERVICE CODE</th>';
+    html += '<th>SERVICE NAME</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+    
+    for (var j = 0; j < services.length; j++) {
+      var service = services[j];
+      html += '<tr>';
+      html += '<td><strong>' + (service.serviceCode || '') + '</strong></td>';
+      html += '<td>' + (service.serviceName || '') + '</td>';
+      html += '</tr>';
+    }
+    
+    html += '</tbody></table>';
+  }
+  // ============================================
+  // END SERVICES SECTION
+  // ============================================
+
   // Totals & Terms (2-column layout)
   html += '<div class="totals-container">';
   
@@ -188,6 +215,30 @@ function createPDFHTML(data, type) {
   html += '<div class="total-row section-divider"><span><strong>Sub Total</strong></span><span><strong>$' + parseFloat(data.subTotal || 0).toFixed(2) + '</strong></span></div>';
   // html += '<div class="total-row"><span>Sales Tax</span><span>' + (data.salesTax != null ? '$' + parseFloat(data.salesTax).toFixed(2) : 'Exempt') + '</span></div>';
   html += '<div class="total-row"><span>Sales Tax</span><span>$' + parseFloat(data.salesTax || 0).toFixed(2) + '</span></div>';
+  
+  // NEW: Additional Charges (only for invoices)
+  if (isInvoice) {
+    var hasAdditionalCharges = (parseFloat(data.ratePrice || 0) > 0) || 
+                                (parseFloat(data.drivingHoursPrice || 0) > 0) || 
+                                (parseFloat(data.onSiteHoursPrice || 0) > 0);
+    
+    if (hasAdditionalCharges) {
+      html += '<div class="total-row section-divider" style="padding-top: 10px;"><span><strong>Additional Charges:</strong></span><span></span></div>';
+      
+      if (parseFloat(data.ratePrice || 0) > 0) {
+        html += '<div class="total-row"><span>' + (data.rateType || 'Rate') + '</span><span>$' + parseFloat(data.ratePrice).toFixed(2) + '</span></div>';
+      }
+      
+      if (parseFloat(data.drivingHoursPrice || 0) > 0) {
+        html += '<div class="total-row"><span>Driving Hours</span><span>$' + parseFloat(data.drivingHoursPrice).toFixed(2) + '</span></div>';
+      }
+      
+      if (parseFloat(data.onSiteHoursPrice || 0) > 0) {
+        html += '<div class="total-row"><span>On-Site Hours</span><span>$' + parseFloat(data.onSiteHoursPrice).toFixed(2) + '</span></div>';
+      }
+    }
+  }
+  
   html += '<div class="total-row grand-total"><span>GRAND TOTAL</span><span>$' + parseFloat(data.grandTotal || 0).toFixed(2) + '</span></div>';
   
   // Payment Schedule
