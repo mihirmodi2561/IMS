@@ -1,4 +1,32 @@
 =========================================== New Quote page (Add Services) ==================================================
+So, Thank you for your last code, it's working well.
+Now I'm here for one of biggest task and reamining one of the biggest task.
+SO, I'll start with, It's a new page call "Tech Library"
+What i want here is a page when user click on this page from side menu bar, he can see on top similar to other page, 
+The name, -- "Technical Library" and opposite of this a button Add Tech Library
+below this similar to pages margin and padding and UI formate below i need a table and that conntains,
+Technical Library name, Sub Title/catrgory, Equipment, Files, Create date, Actions
+
+now we click Add Tech Library button what admin will add, Library Name and Sub Title/catrgory.
+and it's created and listed on table.
+on action column we have three button View, Edit, and Delete
+using view pop up modal will open and we can check whole information (read mode only, no edit)
+on Edit button, if admin click on edit button it open new page.
+On top back button and beside that Technical Library name
+below that 4 tabs --> System Diagrams | Equipment List | Installation Steps | Scope of Work
+one of important thing System Diagrams here admin create a digram or upload one or multiple, he can select from multiple digram.
+Equipment List tab - this Equipment List item is connected with inventory page, means when admin click Equipment List tab we can add Equipment item that is connected with inventory or item page
+Installation Steps -- admin can enter Installation Steps by step1 and step2 and so on...
+Scope of Work -- this Scope of Work is similar to objective, admin can write down a note for if they use this diagram if there is a note technicaian can read it.
+
+delte is delete buttin wehere he can can delete Technical Library folder that admin created.
+I know you have too manu question, and you should ask before creating and understanding anything, ask me a question as much as you can.
+
+Do you understand what i meant here? and what i want to do?
+understand and analysis my requirment and then tell me shortest summary what you understood? Don't do code right now, first we finalise what we have to do and then do code.
+
+
+=========================================== New Quote page (Add Services) ==================================================
 So, okay now when create service page we have service database, and add service button. 
 READ CAREFULLY FROM HERE:
 HERE ONE OF MAJOR UPDATE I WANT TO DO and that is, whole page construction can change,
@@ -46,9 +74,7 @@ So, okay i want to start with one major update,
 i want to built edit button in Invoice page on action column with other buttons.
 As you analysis you know we have view modal in invoice page. with same modal but i want to edit features, 
 So if admin wants to edit his invoice he can edit,
-what he can edit, items he can add items
-
-
+what he can edit, items he can add item
 
 
 
@@ -177,7 +203,6 @@ Important: Don't disturb existing columns, just add at the end!
 6. 6. Backend creates invoice with these 3 extra charges 
 7. 7. Stores in Invoices sheet columns at the end 
 8. 8. Shows on invoice view/PDF with updated GRAND TOTAL
-
 
 
 =============================================================== 100% correct ============================================
